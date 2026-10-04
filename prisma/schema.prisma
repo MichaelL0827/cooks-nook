@@ -1,0 +1,138 @@
+// Cooks Nook cookbook app — database schema
+// Run `npx prisma migrate dev --name init` after setting DATABASE_URL in .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+
+  recipes      Recipe[]
+  allergens    UserAllergen[]
+}
+
+model Recipe {
+  id          String    @id @default(uuid())
+  name        String
+  servings    Int?
+  prepMinutes Int?
+  cookMinutes Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  steps       Step[]
+  ingredients RecipeIngredient[]
+  tags        RecipeTag[]
+
+  @@index([userId])
+  @@index([name])
+}
+
+model Step {
+  id           String  @id @default(uuid())
+  stepNumber   Int
+  instruction  String
+
+  recipeId     String
+  recipe       Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
+
+// Master ingredient list — shared across all users/recipes so substitution
+// and "what can I make with X" style lookups work against one table.
+model Ingredient {
+  id      String  @id @default(uuid())
+  name    String  @unique
+
+  usedIn       RecipeIngredient[]
+  substitutes  IngredientSubstitute[] @relation("BaseIngredient")
+  substituteFor IngredientSubstitute[] @relation("SubstituteIngredient")
+}
+
+// Join table: a recipe's actual ingredient list, with quantity/unit specific
+// to that recipe (quantity lives here, not on Ingredient).
+model RecipeIngredient {
+  id           String      @id @default(uuid())
+  quantity     Float?
+  unit         String?
+  notes        String?
+
+  recipeId     String
+  recipe       Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  ingredientId String
+  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id])
+
+  @@index([recipeId])
+  @@index([ingredientId])
+}
+
+model Tag {
+  id     String      @id @default(uuid())
+  name   String      @unique
+
+  recipes RecipeTag[]
+}
+
+model RecipeTag {
+  recipeId String
+  recipe   Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  tagId    String
+  tag      Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, tagId])
+}
+
+// Allergen master list (e.g., dairy, gluten, peanuts, shellfish)
+model Allergen {
+  id   String @id @default(uuid())
+  name String @unique
+
+  users        UserAllergen[]
+  substitutes  IngredientSubstitute[]
+}
+
+// A user's declared allergens/dietary restrictions
+model UserAllergen {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  allergenId String
+  allergen   Allergen @relation(fields: [allergenId], references: [id], onDelete: Cascade)
+
+  @@id([userId, allergenId])
+}
+
+// Suggested substitute for an ingredient, optionally scoped to a specific
+// allergen (e.g., butter -> olive oil for dairy; flour -> almond flour for gluten)
+model IngredientSubstitute {
+  id             String      @id @default(uuid())
+  notes          String?
+
+  ingredientId   String
+  ingredient     Ingredient  @relation("BaseIngredient", fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  substituteId   String
+  substitute     Ingredient  @relation("SubstituteIngredient", fields: [substituteId], references: [id], onDelete: Cascade)
+
+  // Null = general-purpose substitute, not tied to a specific allergen
+  allergenId     String?
+  allergen       Allergen?   @relation(fields: [allergenId], references: [id], onDelete: Cascade)
+
+  @@index([ingredientId])
+  @@index([allergenId])
+}
