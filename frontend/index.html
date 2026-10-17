@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cooks Nook</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="auth-view" class="auth-view">
+        <div class="brand-mark">CN</div>
+        <p class="eyebrow">Your personal recipe companion</p>
+        <h1>Welcome to Cooks Nook</h1>
+        <p class="muted">Organize recipes, save your favorite meals, and make cooking feel a little easier.</p>
+
+        <form id="auth-form" class="panel auth-panel">
+          <div class="auth-tabs">
+            <button type="button" class="tab active" data-mode="login">Log in</button>
+            <button type="button" class="tab" data-mode="register">Create account</button>
+          </div>
+          <label>Email<input id="auth-email" type="email" required autocomplete="email" /></label>
+          <label>Password<input id="auth-password" type="password" required minlength="8" autocomplete="current-password" /></label>
+          <button class="button primary" type="submit" id="auth-submit">Log in</button>
+          <p id="auth-message" class="form-message"></p>
+        </form>
+      </section>
+
+      <section id="app-view" class="hidden">
+        <header class="topbar">
+          <div class="brand"><span class="brand-mark small">CN</span><span>Cooks Nook</span></div>
+          <div class="topbar-actions"><span id="user-email" class="muted"></span><button id="logout-button" class="button ghost">Log out</button></div>
+        </header>
+
+        <div class="workspace">
+          <aside class="sidebar">
+            <div class="sidebar-heading"><div><p class="eyebrow">My cookbook</p><h2>Recipes</h2></div><button id="new-recipe-button" class="icon-button" title="New recipe">+</button></div>
+            <input id="recipe-search" class="search" type="search" placeholder="Search recipes..." />
+            <div id="recipe-list" class="recipe-list"></div>
+          </aside>
+
+          <section class="content">
+            <div id="empty-state" class="empty-state">
+              <div class="empty-icon">✦</div>
+              <h2>Your cookbook is ready</h2>
+              <p class="muted">Create your first recipe to start building your personal collection.</p>
+              <button id="empty-new-button" class="button primary">Add a recipe</button>
+            </div>
+
+            <form id="recipe-form" class="recipe-editor hidden">
+              <div class="editor-heading"><div><p class="eyebrow" id="editor-eyebrow">New recipe</p><input id="recipe-name" class="title-input" required placeholder="Recipe name" /></div><div class="editor-actions"><button type="button" id="cancel-button" class="button ghost">Cancel</button><button class="button primary" type="submit">Save recipe</button></div></div>
+              <div class="metadata-grid"><label>Servings<input id="recipe-servings" type="number" min="1" placeholder="4" /></label><label>Prep minutes<input id="recipe-prep" type="number" min="0" placeholder="15" /></label><label>Cook minutes<input id="recipe-cook" type="number" min="0" placeholder="30" /></label></div>
+              <div class="editor-grid">
+                <div class="panel editor-section"><div class="section-heading"><h3>Ingredients</h3><button type="button" class="text-button" id="add-ingredient">+ Add</button></div><div id="ingredient-fields"></div></div>
+                <div class="panel editor-section"><div class="section-heading"><h3>Steps</h3><button type="button" class="text-button" id="add-step">+ Add</button></div><div id="step-fields"></div></div>
+              </div>
+              <label>Tags<input id="recipe-tags" placeholder="quick meals, dinner, family favorite" /></label>
+              <p id="recipe-message" class="form-message"></p>
+            </form>
+
+            <article id="recipe-detail" class="recipe-detail hidden"></article>
+          </section>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
