@@ -55,7 +55,9 @@ All routes below live under `/recipes`, require `Authorization: Bearer <token>`,
 and are scoped to the logged-in user — one user can never read, edit, or
 delete another user's recipes.
 
-- `GET /recipes` — list the current user's recipes (summary fields).
+- `GET /recipes` — list the current user's recipes (summary fields). Optional
+  query filters include `search`, `tag`, and `ingredient`, such as
+  `/recipes?tag=dinner&ingredient=chicken`.
 - `GET /recipes/:id` — full detail for one recipe, including its steps,
   ingredients, and tags.
 - `POST /recipes` — create a recipe. Body:

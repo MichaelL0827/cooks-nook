@@ -103,8 +103,19 @@ async function replaceRecipeTags(tx, recipeId, tags) {
 // GET /recipes — list the current user's recipes (summary fields only;
 // use GET /recipes/:id for full detail with steps/ingredients/tags).
 router.get("/", async (req, res) => {
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const tag = typeof req.query.tag === "string" ? req.query.tag.trim() : "";
+  const ingredient = typeof req.query.ingredient === "string" ? req.query.ingredient.trim() : "";
+
   const recipes = await prisma.recipe.findMany({
-    where: { userId: req.userId },
+    where: {
+      userId: req.userId,
+      ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+      ...(tag ? { tags: { some: { tag: { name: { contains: tag, mode: "insensitive" } } } } } : {}),
+      ...(ingredient
+        ? { ingredients: { some: { ingredient: { name: { contains: ingredient, mode: "insensitive" } } } } }
+        : {}),
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,

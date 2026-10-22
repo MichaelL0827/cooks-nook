@@ -102,6 +102,22 @@ test("a user can list and retrieve their recipes", async () => {
   assert.equal(detail.body.recipe.id, recipeId);
 });
 
+test("recipe lists can be filtered by name, tag, and ingredient", async () => {
+  const byName = await request("GET", "/recipes?search=test toast", undefined, user.token);
+  const byTag = await request("GET", "/recipes?tag=breakfast", undefined, user.token);
+  const byIngredient = await request("GET", "/recipes?ingredient=bread", undefined, user.token);
+  const noMatch = await request("GET", "/recipes?ingredient=tomato", undefined, user.token);
+
+  assert.equal(byName.status, 200);
+  assert.equal(byName.body.recipes.length, 1);
+  assert.equal(byName.body.recipes[0].id, recipeId);
+  assert.equal(byTag.body.recipes.length, 1);
+  assert.equal(byTag.body.recipes[0].id, recipeId);
+  assert.equal(byIngredient.body.recipes.length, 1);
+  assert.equal(byIngredient.body.recipes[0].id, recipeId);
+  assert.equal(noMatch.body.recipes.length, 0);
+});
+
 test("a user can update a recipe", async () => {
   const response = await request(
     "PUT",
