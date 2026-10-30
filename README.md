@@ -96,6 +96,7 @@ delete another user's recipes.
 - `PUT /me/allergens` — replaces the user's allergen settings. Supported values include `dairy`, `peanuts`, `tree nuts`, `eggs`, `gluten`, `soy`, `shellfish`, `fish`, and `sesame`; common synonyms are normalized.
 - `GET /recipes/:id/substitutions` — returns database-backed substitutions for the saved recipe and the user's persisted allergens.
 - The substitution catalog is stored in the `Allergen`, `UserAllergen`, `Ingredient`, and `IngredientSubstitute` tables. Shared aliases cover common forms such as `whole milk`, `unsalted butter`, `almonds`, `walnuts`, `pasta`, `flour tortillas`, and `soy sauce`; matching is exact against those aliases so broad substrings do not create unsafe false matches.
+- Catalog synchronization removes mappings from older catalog versions so stale bases cannot continue producing suggestions.
 - Saved-recipe checks return both possible allergen flags and substitutions. A missing substitution is explicitly presented as unknown rather than as evidence that the recipe is safe.
 
 ## Ingredient Maker

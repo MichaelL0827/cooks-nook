@@ -90,6 +90,9 @@ test("generic nut and synonym allergen values normalize consistently", async () 
   assert.deepEqual(preferences.body.allergens.sort(), ["eggs", "gluten", "peanuts", "tree nuts"].sort());
   const suggestion = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["soy"] }, isolatedUser.token);
   assert.equal(suggestion.status, 200);
+  const shellfish = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["shrimp"] }, isolatedUser.token);
+  assert.equal(shellfish.status, 200);
+  assert.match(shellfish.body.suggestion.assumptions.join(" "), /No substitution data/);
   const unsupported = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["mystery allergen"] }, isolatedUser.token);
   assert.equal(unsupported.status, 400);
 });

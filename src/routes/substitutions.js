@@ -29,9 +29,10 @@ router.get("/:id/substitutions", asyncHandler(async (req, res) => {
     allergen: row.allergen?.name,
     notes: row.notes,
     source: "database-catalog",
-  })));
+  }))).filter((item, index, all) => all.findIndex((candidate) => `${candidate.matchedIngredient}|${candidate.substitute}|${candidate.allergen}` === `${item.matchedIngredient}|${item.substitute}|${item.allergen}`) === index);
   const flags = recipe.ingredients.flatMap((item) => userAllergens.flatMap((userAllergen) => catalog.filter((entry) => entry.allergen === userAllergen.allergen.name && ingredientNameMatches(item.ingredient.name, entry.base)).map((entry) => ({ ingredient: item.ingredient.name, allergen: entry.allergen }))));
-  res.json({ substitutions, flags, warning: userAllergens.length > 0 && substitutions.length === 0 ? "No known substitutions found. This does not mean the recipe is free of your allergens." : null });
+  const noCatalogData = userAllergens.filter((item) => !catalog.some((entry) => entry.allergen === item.allergen.name)).map((item) => item.allergen.name);
+  res.json({ substitutions, flags, noCatalogData, warning: userAllergens.length > 0 && substitutions.length === 0 ? "No known substitutions found. This does not mean the recipe is free of your allergens." : null });
 }));
 
 export default router;

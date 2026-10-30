@@ -28,13 +28,17 @@ export const supportedAllergens = [...new Set([...catalog.map((item) => item.all
 
 const allergenAliases = new Map([
   ["dairy", "dairy"], ["milk", "dairy"], ["lactose", "dairy"],
-  ["peanut", "peanuts"], ["peanuts", "peanuts"],
+  ["peanut", "peanuts"], ["peanuts", "peanuts"], ["soy", "soy"], ["soya", "soy"], ["soybeans", "soy"],
+  ["shellfish", "shellfish"], ["shrimp", "shellfish"], ["prawns", "shellfish"], ["crab", "shellfish"], ["lobster", "shellfish"],
+  ["fish", "fish"], ["seafood", ["fish", "shellfish"]],
+  ["sesame", "sesame"],
   ["nut", ["peanuts", "tree nuts"]], ["nuts", ["peanuts", "tree nuts"]], ["tree nut", "tree nuts"], ["tree nuts", "tree nuts"], ["almond", "tree nuts"], ["walnut", "tree nuts"],
   ["egg", "eggs"], ["eggs", "eggs"],
   ["wheat", "gluten"], ["gluten", "gluten"],
 ]);
 
 export async function ensureSubstitutionCatalog(prisma) {
+  const currentKeys = new Set(catalog.map((item) => `${item.allergen}|${item.base}|${item.substitute}`));
   for (const item of catalog) {
     const allergen = await prisma.allergen.upsert({ where: { name: item.allergen }, update: {}, create: { name: item.allergen } });
     const ingredient = await prisma.ingredient.upsert({ where: { name: item.base }, update: {}, create: { name: item.base } });
@@ -45,6 +49,9 @@ export async function ensureSubstitutionCatalog(prisma) {
       create: { ingredientId: ingredient.id, substituteId: substitute.id, allergenId: allergen.id, notes: item.notes },
     });
   }
+  const existing = await prisma.ingredientSubstitute.findMany({ include: { ingredient: true, substitute: true, allergen: true } });
+  const staleIds = existing.filter((row) => !currentKeys.has(`${row.allergen.name}|${row.ingredient.name}|${row.substitute.name}`)).map((row) => row.id);
+  if (staleIds.length > 0) await prisma.ingredientSubstitute.deleteMany({ where: { id: { in: staleIds } } });
 }
 
 export function normalizeAllergenName(value) {

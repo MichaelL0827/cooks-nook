@@ -2,58 +2,41 @@
 
 ## 2026-10-30
 
-### Week 7 Cooking Assistant
+### Recipe management and search
 
-- Added the protected `POST /recipes/assistant` endpoint.
-- Grounded assistant responses in the authenticated user's saved recipe.
-- Added an offline fallback for local development and an optional LLM provider path.
-- Added safety notes and follow-up questions to assistant responses.
-- Added a cooking assistant panel to the recipe detail view.
-- Added tests for authentication, recipe ownership, validation, and offline answers.
+- Added authenticated recipe CRUD with user-scoped ownership checks.
+- Added recipe tags, name search, tag filtering, and ingredient filtering.
+- Added validation for recipe names, ingredients, steps, tags, and numeric fields.
+- Preserved ingredient notes in the browser editor.
 
-### Week 7 Ingredient Maker Improvements
+### Ingredient maker
 
-- Added structured allergen-aware substitution recommendations for common dairy, nut, egg, and gluten restrictions.
-- Added a reason and caution to each substitution recommendation.
-- Displayed substitution recommendations in the generated recipe draft message.
-- Verified that generated drafts can be edited and saved through the existing recipe CRUD system.
-- Expanded the automated test suite to 27 passing tests.
+- Added `POST /recipes/suggest` with offline fallback and optional structured LLM output.
+- Added editable ingredient, step, tag, assumption, and substitution drafts.
+- Added provider-output repair for parenthetical notes, comma notes, quantities, units, and unsupported ingredient characters.
+- Added input limits and per-user rate limiting.
+- Added a limited-catalog safety caveat when allergen checks are relevant.
 
-### Review Fixes
+### Allergens and substitutions
 
-- Relabeled the cooking assistant work as Week 7 so the changelog agrees with the Week 6 status report.
-- Connected persisted allergens and ingredient substitutions to the existing Prisma tables.
-- Added saved-recipe substitution lookup and account-level allergen settings.
-- Replaced broad substring matching with normalized exact ingredient matching.
-- Added input limits, per-user suggestion rate limiting, provider-name sanitization, and ingredient-note preservation in the editor.
-- Expanded regression coverage to 29 passing tests.
+- Added persisted account allergen settings through `/me/allergens`.
+- Added database-backed substitution lookup for saved recipes.
+- Added normalized allergen synonyms, including generic nuts, soy, shrimp, and seafood.
+- Added food-form-specific catalog entries and matched-recipe-ingredient reporting.
+- Added potential-allergen flags and explicit no-catalog-data assumptions for allergens without substitution data.
+- Added startup catalog synchronization that removes stale mappings and uses a unique compound constraint.
 
-### Review Follow-up
+### Cooking assistant
 
-- Added shared allergen synonym normalization, including peanut, milk, lactose, wheat, egg, and nut aliases.
-- Expanded substitution aliases and added potential-allergen flags plus an explicit no-known-substitution warning.
-- Moved catalog synchronization to application startup and added a unique compound database constraint.
-- Added the same prunable per-user rate limiter to the cooking assistant and ingredient maker.
-- Added async error forwarding for the assistant, suggestions, substitutions, and account-preference routes.
-- Added fake-provider tests for both live LLM paths, including ingredient repair and parenthetical notes.
-- Expanded regression coverage to 35 passing tests.
+- Added the protected, recipe-grounded `POST /recipes/assistant` endpoint.
+- Added offline explanations, safety notes, follow-up questions, and optional LLM responses.
+- Added the cooking assistant panel to the recipe detail view.
+- Added the same per-user rate limiting and async error handling used by the ingredient maker.
 
-### Final Review Corrections
+### Reliability, migrations, and tests
 
-- Moved the Express error handler after every route and wrapped all asynchronous route handlers.
-- Added a permanent limited-catalog safety caveat to saved-recipe substitution results.
-- Expanded catalog aliases for dairy, eggs, gluten, tree nuts, peanuts, soy, tortillas, and common grains.
-- Normalized generic nut terms to both peanut and tree-nut restrictions and rejected unsupported suggestion allergens consistently.
-- Improved provider ingredient repair by splitting comma notes and moving quantities and units into structured fields.
-- Added duplicate-row cleanup before the substitution unique index is created.
+- Moved Express error handling after all routes and preserved 400/413 statuses.
+- Wrapped all asynchronous route handlers with centralized rejection forwarding.
+- Kept the applied unique-index migration byte-stable and moved cleanup into a separate migration.
+- Added fake-provider tests for both live LLM paths without requiring an API key.
 - Expanded regression coverage to 36 passing tests.
-
-### Final Review Follow-up
-
-- Substitution responses now include the actual matched recipe ingredient and separate catalog base ingredient.
-- Split whole-nut, nut-flour, egg, and mayonnaise catalog entries by food form.
-- Preserved HTTP 400 and 413 statuses in the centralized error handler.
-- Moved migration deduplication into a separate migration so the previously applied unique-index migration remains unchanged.
-- Added shellfish, fish, and sesame as accepted allergens with explicit no-catalog-data assumptions.
-- Made the limited-catalog caveat permanent on generated draft messages.
-- Isolated allergen state between tests and replaced the placeholder sanitizer fixture with a realistic comma-note case.
