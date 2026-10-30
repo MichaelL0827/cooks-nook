@@ -98,6 +98,15 @@ delete another user's recipes.
 - When `LLM_API_KEY` is configured, the route uses structured JSON output from
   the configured LLM provider. When no key is configured, it uses an offline
   fallback for local development and testing.
+- When allergens are provided, the response includes editable substitution
+  recommendations with a reason and a caution instead of claiming that a
+  substitute is automatically safe.
+
+## Cooking Assistant
+
+- `POST /recipes/assistant` — protected route that accepts `{ recipeId, question }` and returns an answer grounded in the user's saved recipe.
+- The assistant explains vague cooking language, answers technique questions, and provides cautious substitution guidance with food-safety notes.
+- It uses the configured LLM provider when available and an offline fallback when `LLM_OFFLINE_MODE=true` or no provider key is configured.
 
 ### Try it
 

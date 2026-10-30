@@ -37,8 +37,22 @@ const suggestionSchema = {
     },
     tags: { type: "array", items: { type: "string" } },
     questions: { type: "array", items: { type: "string" } },
+    substitutions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ingredient: { type: "string" },
+          substitute: { type: "string" },
+          reason: { type: "string" },
+          caution: { type: "string" },
+        },
+        required: ["ingredient", "substitute", "reason", "caution"],
+      },
+    },
   },
-  required: ["recipeName", "assumptions", "ingredients", "steps", "tags", "questions"],
+  required: ["recipeName", "assumptions", "ingredients", "steps", "tags", "questions", "substitutions"],
 };
 
 function validateRequest(body) {
@@ -60,6 +74,34 @@ function validateRequest(body) {
     }
   }
   return errors;
+}
+
+function makeAllergenSubstitutions(allergens, ingredients) {
+  const requested = allergens.map((item) => item.toLowerCase());
+  const names = ingredients.map((item) => ({ original: item, lower: item.toLowerCase() }));
+  const substitutions = [];
+  const add = (match, substitute, reason, caution) => {
+    const ingredient = names.find((item) => item.lower.includes(match));
+    if (ingredient) substitutions.push({ ingredient: ingredient.original, substitute, reason, caution });
+  };
+
+  if (requested.some((item) => /dairy|milk|lactose/.test(item))) {
+    add("milk", "unsweetened oat or soy milk", "Similar liquid texture for batters and sauces.", "Choose a product labeled for the intended allergen restriction and check its flavor.");
+    add("butter", "plant-based butter or neutral cooking oil", "Provides fat for cooking and moisture.", "Plant-based products vary; verify the label if dairy avoidance is medically required.");
+    add("cheese", "nutritional yeast or a dairy-free cheese", "Adds savory flavor or a similar meltable texture.", "Nut-based alternatives may introduce a separate allergen.");
+  }
+  if (requested.some((item) => /peanut|nut|tree nut/.test(item))) {
+    add("peanut", "sunflower seed butter", "Provides a similar creamy, savory role.", "Check the label for shared-equipment warnings and other seed allergies.");
+    add("almond", "oat milk or sunflower seed butter", "Avoids tree nuts while keeping a similar texture or liquid role.", "Check the label for cross-contact warnings.");
+  }
+  if (requested.some((item) => /egg/.test(item))) {
+    add("egg", "commercial egg replacer or 1 tablespoon ground flax mixed with 3 tablespoons water", "Can provide binding in many baked recipes.", "Egg replacements are recipe-dependent and may not work for custards or meringues.");
+  }
+  if (requested.some((item) => /gluten|wheat/.test(item))) {
+    add("flour", "a certified gluten-free all-purpose flour blend", "Provides a similar dry base for many recipes.", "Use a blend designed for the recipe; some require added binder such as xanthan gum.");
+    add("bread", "certified gluten-free bread", "Provides a similar structure for toast or sandwiches.", "Certification matters when cross-contact must be avoided.");
+  }
+  return substitutions;
 }
 
 function makeFallbackSuggestion({ recipeName, servings, allergens = [], availableIngredients = [] }) {
@@ -120,6 +162,7 @@ function makeFallbackSuggestion({ recipeName, servings, allergens = [], availabl
     ? [`The user already has: ${availableIngredients.join(", ")}.`]
     : [];
 
+  const substitutions = makeAllergenSubstitutions(allergens, ingredients.map((item) => item.name));
   return {
     recipeName: name,
     assumptions: ["This is a general starting point, not a finalized recipe.", ...allergenNotes, ...availableNotes],
@@ -127,6 +170,7 @@ function makeFallbackSuggestion({ recipeName, servings, allergens = [], availabl
     steps,
     tags,
     questions: [],
+    substitutions,
   };
 }
 
@@ -147,7 +191,7 @@ async function requestLlmSuggestion(input) {
       model: process.env.LLM_MODEL || "gpt-4.1-mini",
       store: false,
       instructions:
-        "You generate cautious, editable recipe drafts for a cookbook app. Return only the requested JSON structure. Use approximate quantities when a recipe name does not determine exact amounts. Do not claim allergen safety; identify assumptions and ask questions when the recipe name is ambiguous. Keep steps concise and include food-safety language when relevant.",
+        "You generate cautious, editable recipe drafts for a cookbook app. Return only the requested JSON structure. Use approximate quantities when a recipe name does not determine exact amounts. Do not claim allergen safety; identify assumptions and ask questions when the recipe name is ambiguous. Keep steps concise, include food-safety language when relevant, and provide common substitutions for each relevant declared allergen.",
       input: `Create a general recipe draft for: ${input.recipeName}. Servings: ${input.servings ?? "unspecified"}. Declared allergens or dietary restrictions: ${(input.allergens ?? []).join(", ") || "none provided"}. Ingredients already available: ${(input.availableIngredients ?? []).join(", ") || "none provided"}.`,
       text: {
         format: {

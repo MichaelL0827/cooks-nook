@@ -35,8 +35,25 @@ function renderRecipeList() {
 async function selectRecipe(id) {
   const data = await api(`/recipes/${id}`); state.selectedId = id; renderRecipeList(); $("#empty-state").classList.add("hidden"); $("#recipe-form").classList.add("hidden"); $("#recipe-detail").classList.remove("hidden");
   const recipe = data.recipe; const tags = recipe.tags.map(({ tag }) => `<span class="tag">${escapeHtml(tag.name)}</span>`).join("");
-  $("#recipe-detail").innerHTML = `<div class="detail-heading"><div><p class="eyebrow">Saved recipe</p><h1>${escapeHtml(recipe.name)}</h1><div class="detail-meta">${recipe.servings ? `${recipe.servings} servings` : ""}${recipe.prepMinutes !== null ? ` · ${recipe.prepMinutes} min prep` : ""}${recipe.cookMinutes !== null ? ` · ${recipe.cookMinutes} min cook` : ""}</div><div>${tags}</div></div><div class="detail-actions"><button class="button ghost" id="edit-recipe">Edit</button><button class="button ghost" id="delete-recipe">Delete</button></div></div><div class="detail-columns"><section><h3>Ingredients</h3><ul class="ingredient-list">${recipe.ingredients.map((item) => `<li>${item.quantity ?? ""} ${escapeHtml(item.unit || "")} ${escapeHtml(item.ingredient.name)}${item.notes ? `, ${escapeHtml(item.notes)}` : ""}</li>`).join("")}</ul></section><section><h3>Steps</h3><ol class="step-list">${recipe.steps.map((step) => `<li>${escapeHtml(step.instruction)}</li>`).join("")}</ol></section></div><section class="assistant"><h3>Cooking assistant</h3><p class="muted">The AI assistant will be connected here next. It will use this recipe to clarify vague instructions and suggest techniques or substitutions.</p></section>`;
-  $("#edit-recipe").addEventListener("click", () => openEditor(recipe)); $("#delete-recipe").addEventListener("click", () => deleteRecipe(recipe.id));
+  $("#recipe-detail").innerHTML = `<div class="detail-heading"><div><p class="eyebrow">Saved recipe</p><h1>${escapeHtml(recipe.name)}</h1><div class="detail-meta">${recipe.servings ? `${recipe.servings} servings` : ""}${recipe.prepMinutes !== null ? ` · ${recipe.prepMinutes} min prep` : ""}${recipe.cookMinutes !== null ? ` · ${recipe.cookMinutes} min cook` : ""}</div><div>${tags}</div></div><div class="detail-actions"><button class="button ghost" id="edit-recipe">Edit</button><button class="button ghost" id="delete-recipe">Delete</button></div></div><div class="detail-columns"><section><h3>Ingredients</h3><ul class="ingredient-list">${recipe.ingredients.map((item) => `<li>${item.quantity ?? ""} ${escapeHtml(item.unit || "")} ${escapeHtml(item.ingredient.name)}${item.notes ? `, ${escapeHtml(item.notes)}` : ""}</li>`).join("")}</ul></section><section><h3>Steps</h3><ol class="step-list">${recipe.steps.map((step) => `<li>${escapeHtml(step.instruction)}</li>`).join("")}</ol></section></div><section class="assistant"><h3>Cooking assistant</h3><p class="muted">Ask about a step, timing cue, technique, or ingredient substitution.</p><form id="assistant-form" class="assistant-form"><input id="assistant-question" required maxlength="500" placeholder="What does 'until golden' mean?" /><button class="button primary" type="submit">Ask</button></form><p id="assistant-message" class="form-message"></p><div id="assistant-answer" class="assistant-answer hidden"></div></section>`;
+  $("#edit-recipe").addEventListener("click", () => openEditor(recipe)); $("#delete-recipe").addEventListener("click", () => deleteRecipe(recipe.id)); $("#assistant-form").addEventListener("submit", (event) => askAssistant(event, recipe.id));
+}
+
+async function askAssistant(event, recipeId) {
+  event.preventDefault();
+  const question = $("#assistant-question").value.trim();
+  if (!question) return;
+  const button = event.submitter;
+  button.disabled = true;
+  setMessage("#assistant-message", "Thinking...");
+  try {
+    const response = await api("/recipes/assistant", { method: "POST", body: JSON.stringify({ recipeId, question }) });
+    const answer = response.answer;
+    $("#assistant-answer").innerHTML = `<p>${escapeHtml(answer.answer)}</p>${answer.safetyNotes.length ? `<strong>Safety notes</strong><ul>${answer.safetyNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul>` : ""}${answer.followUpQuestions.length ? `<strong>Follow-up ideas</strong><ul>${answer.followUpQuestions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}<small class="muted">Source: ${escapeHtml(response.source)}</small>`;
+    $("#assistant-answer").classList.remove("hidden");
+    setMessage("#assistant-message", "");
+  } catch (error) { setMessage("#assistant-message", error.message); }
+  finally { button.disabled = false; }
 }
 
 function showEmpty() { $("#empty-state").classList.remove("hidden"); $("#recipe-form").classList.add("hidden"); $("#recipe-detail").classList.add("hidden"); state.selectedId = null; renderRecipeList(); }
@@ -72,7 +89,8 @@ async function generateSuggestion() {
     renderStepFields(suggestion.steps);
     $("#recipe-tags").value = suggestion.tags.join(", ");
     const assumptions = suggestion.assumptions.length ? ` Assumptions: ${suggestion.assumptions.join(" ")}` : "";
-    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${assumptions}`);
+    const substitutions = suggestion.substitutions?.length ? ` Substitutions: ${suggestion.substitutions.map((item) => `${item.ingredient} → ${item.substitute}`).join("; ")}.` : "";
+    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${substitutions}${assumptions}`);
   } catch (error) { setMessage("#recipe-message", error.message); }
   finally { button.disabled = false; button.textContent = "Generate draft"; }
 }
