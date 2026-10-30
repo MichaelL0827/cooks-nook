@@ -37,9 +37,11 @@ app.use("/recipes", recipeRoutes);
 app.use("/recipes/suggest", suggestionRoutes);
 
 app.use((error, req, res, next) => {
-  console.error("Unhandled request error:", error);
+  const status = error.status || error.statusCode || 500;
+  if (status >= 500) console.error("Unhandled request error:", error);
   if (res.headersSent) return next(error);
-  res.status(500).json({ error: "An unexpected server error occurred." });
+  if (status === 400 && error instanceof SyntaxError) return res.status(400).json({ error: "Malformed JSON request." });
+  res.status(status).json({ error: status >= 500 ? "An unexpected server error occurred." : (error.message || "Request failed.") });
 });
 
 const PORT = process.env.PORT || 3001;

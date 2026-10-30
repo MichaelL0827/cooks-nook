@@ -1,7 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
-import { ingredientNameMatches, normalizeAllergenNames } from "../lib/substitutions.js";
+import { catalog, ingredientNameMatches, normalizeAllergenNames } from "../lib/substitutions.js";
 import { supportedAllergens } from "../lib/substitutions.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
@@ -91,7 +91,7 @@ async function getDatabaseSubstitutions(allergens, ingredients) {
   const allergenRows = await prisma.allergen.findMany({ where: { name: { in: allergens } } });
   const allergenIds = allergenRows.map((item) => item.id);
   const rows = await prisma.ingredientSubstitute.findMany({ where: { allergenId: { in: allergenIds } }, include: { ingredient: true, substitute: true, allergen: true } });
-  return rows.filter((row) => ingredients.some((item) => ingredientNameMatches(item.name, row.ingredient.name))).map((row) => ({ ingredient: row.ingredient.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" }));
+  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(item.name, row.ingredient.name)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
 }
 
 function sanitizeSuggestion(suggestion) {
@@ -260,6 +260,8 @@ router.post("/", asyncHandler(async (req, res) => {
     const suggestion = useFallback ? makeFallbackSuggestion(input) : sanitizeSuggestion(await requestLlmSuggestion(input));
     const dbSubstitutions = await getDatabaseSubstitutions(input.allergens, suggestion.ingredients);
     suggestion.substitutions = [...new Map([...dbSubstitutions, ...(suggestion.substitutions || [])].map((item) => [`${item.ingredient}:${item.substitute}`, item])).values()];
+    const noCatalogData = input.allergens.filter((allergen) => !catalog.some((item) => item.allergen === allergen));
+    if (noCatalogData.length > 0) suggestion.assumptions.push(`No substitution data is available for ${noCatalogData.join(", ")}; check recipe ingredients manually.`);
     return res.json({ suggestion, source: useFallback ? "offline-fallback" : "llm" });
   } catch (error) {
     console.error("Recipe suggestion failed:", error.message);

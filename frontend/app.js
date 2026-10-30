@@ -110,8 +110,8 @@ async function generateSuggestion() {
     renderStepFields(suggestion.steps);
     $("#recipe-tags").value = suggestion.tags.join(", ");
     const assumptions = suggestion.assumptions.length ? ` Assumptions: ${suggestion.assumptions.join(" ")}` : "";
-    const substitutions = suggestion.substitutions?.length ? ` Substitutions: ${suggestion.substitutions.map((item) => `${item.ingredient} → ${item.substitute} [${item.source || response.source}]`).join("; ")}.` : (state.allergens.length ? " No known substitutions found, which does not mean this recipe is free of your allergens." : "");
-    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${substitutions}${assumptions}`);
+    const substitutions = suggestion.substitutions?.length ? ` Substitutions: ${suggestion.substitutions.map((item) => `${item.ingredient} → ${item.substitute} [${item.source || response.source}]`).join("; ")}.` : (state.allergens.length ? " No known substitutions found." : "");
+    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${substitutions}${assumptions} Checked against a limited catalog; absence of a flag is not a safety guarantee.`);
   } catch (error) { setMessage("#recipe-message", error.message); }
   finally { button.disabled = false; button.textContent = "Generate draft"; }
 }

@@ -1,7 +1,8 @@
-# Cooks Nook — Backend Scaffold
+# Cooks Nook
 
-Covers Tasks 1–4 from the project proposal: tech stack setup, database
-schema design, user authentication, and core recipe CRUD.
+An AI-assisted cookbook prototype with authenticated recipe CRUD, search and
+filtering, persisted allergen settings, database-backed substitutions, an
+ingredient draft generator, and a recipe-grounded cooking assistant.
 
 ## Stack
 
@@ -9,7 +10,7 @@ schema design, user authentication, and core recipe CRUD.
 - **Database:** PostgreSQL
 - **ORM:** Prisma (`prisma/schema.prisma`)
 - **Auth:** JWT + bcrypt
-- **Frontend (separate project):** React (Vite)
+- **Frontend:** browser prototype served by Express from `frontend/`
 
 ## Schema overview
 
@@ -92,7 +93,7 @@ delete another user's recipes.
 ## Dietary restrictions and substitutions
 
 - `GET /me/allergens` — returns the authenticated user's persisted allergen settings.
-- `PUT /me/allergens` — replaces the user's allergen settings. Supported starter values are `dairy`, `peanuts`, `tree nuts`, `eggs`, and `gluten`.
+- `PUT /me/allergens` — replaces the user's allergen settings. Supported values include `dairy`, `peanuts`, `tree nuts`, `eggs`, `gluten`, `soy`, `shellfish`, `fish`, and `sesame`; common synonyms are normalized.
 - `GET /recipes/:id/substitutions` — returns database-backed substitutions for the saved recipe and the user's persisted allergens.
 - The substitution catalog is stored in the `Allergen`, `UserAllergen`, `Ingredient`, and `IngredientSubstitute` tables. Shared aliases cover common forms such as `whole milk`, `unsalted butter`, `almonds`, `walnuts`, `pasta`, `flour tortillas`, and `soy sauce`; matching is exact against those aliases so broad substrings do not create unsafe false matches.
 - Saved-recipe checks return both possible allergen flags and substitutions. A missing substitution is explicitly presented as unknown rather than as evidence that the recipe is safe.
@@ -113,8 +114,9 @@ delete another user's recipes.
   ingredient names are sanitized before they reach recipe CRUD validation.
 - The substitution catalog is initialized once at application startup and uses
   a unique ingredient/substitute/allergen constraint to prevent duplicate rows.
-- The unique-index migration removes duplicate mappings before creating the
-  constraint, which makes it safer to apply to an existing development database.
+- Gluten is used as a conservative starter category for wheat-containing
+  ingredients; it is not a medical claim that wheat allergy and celiac disease
+  are identical.
 
 ## Cooking Assistant
 
@@ -138,7 +140,8 @@ curl http://localhost:3001/recipes -H "Authorization: Bearer <token>"
 (On Windows PowerShell, use `curl.exe` and escape inner quotes, or use
 `Invoke-RestMethod` — see chat history for examples.)
 
-## Next step (Task 5)
+## Development status
 
-Recipe organization and search — tags, categories, and filtering across a
-user's saved recipes.
+The local prototype is covered by automated API, ownership, validation, offline
+fallback, and fake-provider tests. Live LLM behavior requires a configured
+provider key; local development defaults to the offline path.

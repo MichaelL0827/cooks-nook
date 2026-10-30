@@ -21,13 +21,15 @@ router.get("/:id/substitutions", asyncHandler(async (req, res) => {
     include: { ingredient: true, substitute: true, allergen: true },
   });
 
-  const substitutions = rows.filter((row) => recipe.ingredients.some((item) => ingredientNameMatches(item.ingredient.name, row.ingredient.name))).map((row) => ({
-    ingredient: row.ingredient.name,
+  const substitutions = rows.flatMap((row) => recipe.ingredients.filter((item) => ingredientNameMatches(item.ingredient.name, row.ingredient.name)).map((item) => ({
+    matchedIngredient: item.ingredient.name,
+    catalogIngredient: row.ingredient.name,
+    ingredient: item.ingredient.name,
     substitute: row.substitute.name,
     allergen: row.allergen?.name,
     notes: row.notes,
     source: "database-catalog",
-  }));
+  })));
   const flags = recipe.ingredients.flatMap((item) => userAllergens.flatMap((userAllergen) => catalog.filter((entry) => entry.allergen === userAllergen.allergen.name && ingredientNameMatches(item.ingredient.name, entry.base)).map((entry) => ({ ingredient: item.ingredient.name, allergen: entry.allergen }))));
   res.json({ substitutions, flags, warning: userAllergens.length > 0 && substitutions.length === 0 ? "No known substitutions found. This does not mean the recipe is free of your allergens." : null });
 }));

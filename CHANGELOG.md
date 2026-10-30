@@ -47,3 +47,13 @@
 - Improved provider ingredient repair by splitting comma notes and moving quantities and units into structured fields.
 - Added duplicate-row cleanup before the substitution unique index is created.
 - Expanded regression coverage to 36 passing tests.
+
+### Final Review Follow-up
+
+- Substitution responses now include the actual matched recipe ingredient and separate catalog base ingredient.
+- Split whole-nut, nut-flour, egg, and mayonnaise catalog entries by food form.
+- Preserved HTTP 400 and 413 statuses in the centralized error handler.
+- Moved migration deduplication into a separate migration so the previously applied unique-index migration remains unchanged.
+- Added shellfish, fish, and sesame as accepted allergens with explicit no-catalog-data assumptions.
+- Made the limited-catalog caveat permanent on generated draft messages.
+- Isolated allergen state between tests and replaced the placeholder sanitizer fixture with a realistic comma-note case.

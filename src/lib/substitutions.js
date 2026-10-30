@@ -8,8 +8,10 @@ export const catalog = [
   { allergen: "dairy", base: "whey", aliases: ["whey", "whey protein"], substitute: "pea protein", notes: "Protein powders vary in behavior; check the label and recipe ratios." },
   { allergen: "dairy", base: "cheese", aliases: ["cheese", "parmesan", "parmesan cheese", "cheddar", "mozzarella"], substitute: "nutritional yeast", notes: "Nut-based cheese alternatives may introduce another allergen." },
   { allergen: "peanuts", base: "peanut butter", aliases: ["peanut butter", "peanuts", "peanut"], substitute: "sunflower seed butter", notes: "Check the label for shared-equipment warnings." },
-  { allergen: "tree nuts", base: "almond flour", aliases: ["almond flour", "almonds", "almond", "walnuts", "walnut", "cashews", "cashew", "pecans", "pecan", "hazelnuts", "hazelnut", "pistachios", "pistachio"], substitute: "oat flour", notes: "Use a certified product when cross-contact must be avoided." },
-  { allergen: "eggs", base: "eggs", aliases: ["egg", "eggs", "egg white", "egg whites", "mayonnaise"], substitute: "commercial egg replacer", notes: "Egg replacers do not work the same way in every recipe." },
+  { allergen: "tree nuts", base: "whole tree nuts", aliases: ["almonds", "almond", "walnuts", "walnut", "cashews", "cashew", "pecans", "pecan", "hazelnuts", "hazelnut", "pistachios", "pistachio"], substitute: "sunflower seeds", notes: "Use a certified product when cross-contact must be avoided." },
+  { allergen: "tree nuts", base: "almond flour", aliases: ["almond flour"], substitute: "oat flour", notes: "Use a certified product when cross-contact must be avoided." },
+  { allergen: "eggs", base: "eggs", aliases: ["egg", "eggs", "egg white", "egg whites"], substitute: "commercial egg replacer", notes: "Egg replacers do not work the same way in every recipe." },
+  { allergen: "eggs", base: "mayonnaise", aliases: ["mayonnaise", "mayo"], substitute: "egg-free mayonnaise", notes: "Check the label for dairy, soy, or other allergens." },
   { allergen: "gluten", base: "flour", aliases: ["flour", "all-purpose flour", "whole-wheat flour", "wheat flour", "bread flour"], substitute: "certified gluten-free flour blend", notes: "Some blends require an added binder." },
   { allergen: "gluten", base: "barley", aliases: ["barley"], substitute: "certified gluten-free grains", notes: "Check the replacement grain's cooking time and label." },
   { allergen: "gluten", base: "rye", aliases: ["rye"], substitute: "certified gluten-free grains", notes: "Check the replacement grain's cooking time and label." },
@@ -22,7 +24,7 @@ export const catalog = [
   { allergen: "soy", base: "soy sauce", aliases: ["soy sauce", "soya sauce"], substitute: "coconut aminos", notes: "Coconut is a separate allergen for some people; check the label." },
 ];
 
-export const supportedAllergens = [...new Set(catalog.map((item) => item.allergen))];
+export const supportedAllergens = [...new Set([...catalog.map((item) => item.allergen), "shellfish", "fish", "sesame"])]
 
 const allergenAliases = new Map([
   ["dairy", "dairy"], ["milk", "dairy"], ["lactose", "dairy"],

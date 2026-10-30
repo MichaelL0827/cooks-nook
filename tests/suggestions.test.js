@@ -57,17 +57,17 @@ test("ingredient maker returns allergen-aware substitution recommendations", asy
 });
 
 test("saved recipe substitutions use persisted allergens and exact ingredient names", async () => {
-  const preferences = await request("PUT", "/me/allergens", { allergens: ["dairy"] }, user.token);
+  const preferences = await request("PUT", "/me/allergens", { allergens: ["dairy", "tree nuts", "eggs"] }, user.token);
   assert.equal(preferences.status, 200);
-  assert.deepEqual(preferences.body.allergens, ["dairy"]);
+  assert.deepEqual(preferences.body.allergens.sort(), ["dairy", "tree nuts", "eggs"].sort());
 
   const created = await request("POST", "/recipes", {
     name: "Exact Match Test",
-    ingredients: [{ name: "milk" }, { name: "coconut milk" }, { name: "eggplant" }],
+    ingredients: [{ name: "milk" }, { name: "coconut milk" }, { name: "eggplant" }, { name: "walnuts" }, { name: "mayonnaise" }],
   }, user.token);
   const response = await request("GET", `/recipes/${created.body.recipe.id}/substitutions`, undefined, user.token);
   assert.equal(response.status, 200);
-  assert.deepEqual(response.body.substitutions.map((item) => item.ingredient), ["milk"]);
+  assert.deepEqual(response.body.substitutions.map((item) => item.matchedIngredient).sort(), ["mayonnaise", "milk", "walnuts"].sort());
 });
 
 test("ingredient maker rejects oversized input", async () => {
@@ -83,12 +83,14 @@ test("allergen settings reject unsupported values", async () => {
 });
 
 test("generic nut and synonym allergen values normalize consistently", async () => {
-  const preferences = await request("PUT", "/me/allergens", { allergens: ["nut", "wheat", "egg"] }, user.token);
+  const isolatedUser = await registerTestUser();
+  userIds.push(isolatedUser.userId);
+  const preferences = await request("PUT", "/me/allergens", { allergens: ["nut", "wheat", "egg"] }, isolatedUser.token);
   assert.equal(preferences.status, 200);
   assert.deepEqual(preferences.body.allergens.sort(), ["eggs", "gluten", "peanuts", "tree nuts"].sort());
-  const suggestion = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["soy"] }, user.token);
+  const suggestion = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["soy"] }, isolatedUser.token);
   assert.equal(suggestion.status, 200);
-  const unsupported = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["mystery allergen"] }, user.token);
+  const unsupported = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["mystery allergen"] }, isolatedUser.token);
   assert.equal(unsupported.status, 400);
 });
 
