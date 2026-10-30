@@ -89,6 +89,16 @@ delete another user's recipes.
   ingredients are replaced wholesale (not merged/diffed).
 - `DELETE /recipes/:id` — deletes a recipe and its steps/ingredient links.
 
+## Ingredient Maker
+
+- `POST /recipes/suggest` — protected route that accepts a recipe name,
+  servings, allergens, and available ingredients, then returns an editable
+  ingredient and step draft. The draft is not saved until the user submits it
+  through `POST /recipes`.
+- When `LLM_API_KEY` is configured, the route uses structured JSON output from
+  the configured LLM provider. When no key is configured, it uses an offline
+  fallback for local development and testing.
+
 ### Try it
 
 ```bash

@@ -6,6 +6,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.js";
 import meRoutes from "./routes/me.js";
 import recipeRoutes from "./routes/recipes.js";
+import suggestionRoutes from "./routes/suggestions.js";
 
 const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET"];
 for (const name of requiredEnvVars) {
@@ -27,6 +28,7 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use("/auth", authRoutes);
 app.use("/me", meRoutes);
 app.use("/recipes", recipeRoutes);
+app.use("/recipes/suggest", suggestionRoutes);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

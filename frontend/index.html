@@ -50,8 +50,9 @@
             </div>
 
             <form id="recipe-form" class="recipe-editor hidden">
-              <div class="editor-heading"><div><p class="eyebrow" id="editor-eyebrow">New recipe</p><input id="recipe-name" class="title-input" required placeholder="Recipe name" /></div><div class="editor-actions"><button type="button" id="cancel-button" class="button ghost">Cancel</button><button class="button primary" type="submit">Save recipe</button></div></div>
+              <div class="editor-heading"><div><p class="eyebrow" id="editor-eyebrow">New recipe</p><input id="recipe-name" class="title-input" required placeholder="Recipe name" /></div><div class="editor-actions"><button type="button" id="cancel-button" class="button ghost">Cancel</button><button type="button" id="suggest-button" class="button ghost">Generate draft</button><button class="button primary" type="submit">Save recipe</button></div></div>
               <div class="metadata-grid"><label>Servings<input id="recipe-servings" type="number" min="1" placeholder="4" /></label><label>Prep minutes<input id="recipe-prep" type="number" min="0" placeholder="15" /></label><label>Cook minutes<input id="recipe-cook" type="number" min="0" placeholder="30" /></label></div>
+              <div class="metadata-grid suggestion-inputs"><label>Allergens or dietary restrictions<input id="recipe-allergens" placeholder="dairy, peanuts" /></label><label>Ingredients already available<input id="recipe-available" placeholder="chicken, rice" /></label></div>
               <div class="editor-grid">
                 <div class="panel editor-section"><div class="section-heading"><h3>Ingredients</h3><button type="button" class="text-button" id="add-ingredient">+ Add</button></div><div id="ingredient-fields"></div></div>
                 <div class="panel editor-section"><div class="section-heading"><h3>Steps</h3><button type="button" class="text-button" id="add-step">+ Add</button></div><div id="step-fields"></div></div>

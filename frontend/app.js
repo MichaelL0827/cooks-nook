@@ -49,13 +49,40 @@ function collectRecipe() { const ingredients = [...document.querySelectorAll(".i
 
 async function saveRecipe(event) { event.preventDefault(); try { const body = collectRecipe(); const result = await api(state.editingId ? `/recipes/${state.editingId}` : "/recipes", { method: state.editingId ? "PUT" : "POST", body: JSON.stringify(body) }); state.selectedId = result.recipe.id; await loadRecipes(); } catch (error) { setMessage("#recipe-message", error.message); } }
 async function deleteRecipe(id) { if (!confirm("Delete this recipe?")) return; try { await api(`/recipes/${id}`, { method: "DELETE" }); state.selectedId = null; await loadRecipes(); } catch (error) { alert(error.message); } }
+async function generateSuggestion() {
+  const recipeName = $("#recipe-name").value.trim();
+  if (recipeName.length < 2) { setMessage("#recipe-message", "Enter a recipe name before generating a draft."); return; }
+  const button = $("#suggest-button");
+  button.disabled = true;
+  button.textContent = "Generating...";
+  setMessage("#recipe-message", "");
+  try {
+    const response = await api("/recipes/suggest", {
+      method: "POST",
+      body: JSON.stringify({
+        recipeName,
+        servings: $("#recipe-servings").value ? Number($("#recipe-servings").value) : undefined,
+        allergens: $("#recipe-allergens").value.split(",").map((item) => item.trim()).filter(Boolean),
+        availableIngredients: $("#recipe-available").value.split(",").map((item) => item.trim()).filter(Boolean),
+      }),
+    });
+    const suggestion = response.suggestion;
+    $("#recipe-name").value = suggestion.recipeName;
+    renderIngredientFields(suggestion.ingredients);
+    renderStepFields(suggestion.steps);
+    $("#recipe-tags").value = suggestion.tags.join(", ");
+    const assumptions = suggestion.assumptions.length ? ` Assumptions: ${suggestion.assumptions.join(" ")}` : "";
+    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${assumptions}`);
+  } catch (error) { setMessage("#recipe-message", error.message); }
+  finally { button.disabled = false; button.textContent = "Generate draft"; }
+}
 function logout(message = "") { localStorage.removeItem("cooks-nook-token"); localStorage.removeItem("cooks-nook-email"); state.token = null; state.email = null; state.recipes = []; state.selectedId = null; setMessage("#auth-message", message); $("#auth-form").reset(); showAuth(); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]); }
 function escapeAttr(value) { return escapeHtml(value); }
 
 document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => { state.authMode = button.dataset.mode; document.querySelectorAll("[data-mode]").forEach((item) => item.classList.toggle("active", item === button)); $("#auth-submit").textContent = state.authMode === "login" ? "Log in" : "Create account"; $("#auth-password").setAttribute("autocomplete", state.authMode === "login" ? "current-password" : "new-password"); setMessage("#auth-message"); }));
 $("#auth-form").addEventListener("submit", async (event) => { event.preventDefault(); setMessage("#auth-message", ""); try { const response = await api(`/auth/${state.authMode === "login" ? "login" : "register"}`, { method: "POST", body: JSON.stringify({ email: $("#auth-email").value, password: $("#auth-password").value }) }); state.token = response.token; state.email = response.user.email; localStorage.setItem("cooks-nook-token", state.token); localStorage.setItem("cooks-nook-email", state.email); showApp(); } catch (error) { setMessage("#auth-message", error.message); } });
-$("#logout-button").addEventListener("click", () => logout()); $("#new-recipe-button").addEventListener("click", openNewEditor); $("#empty-new-button").addEventListener("click", openNewEditor); $("#cancel-button").addEventListener("click", () => state.selectedId ? selectRecipe(state.selectedId) : showEmpty()); $("#recipe-form").addEventListener("submit", saveRecipe); ["#recipe-search", "#tag-filter", "#ingredient-filter"].forEach((selector) => $(selector).addEventListener("input", loadRecipes));
+$("#logout-button").addEventListener("click", () => logout()); $("#new-recipe-button").addEventListener("click", openNewEditor); $("#empty-new-button").addEventListener("click", openNewEditor); $("#cancel-button").addEventListener("click", () => state.selectedId ? selectRecipe(state.selectedId) : showEmpty()); $("#suggest-button").addEventListener("click", generateSuggestion); $("#recipe-form").addEventListener("submit", saveRecipe); ["#recipe-search", "#tag-filter", "#ingredient-filter"].forEach((selector) => $(selector).addEventListener("input", loadRecipes));
 $("#add-ingredient").addEventListener("click", () => { const rows = [...document.querySelectorAll(".ingredient-row")].map((row) => ({ name: row.querySelector('[data-field="name"]').value, quantity: row.querySelector('[data-field="quantity"]').value, unit: row.querySelector('[data-field="unit"]').value })); rows.push({}); renderIngredientFields(rows); });
 $("#add-step").addEventListener("click", () => { const rows = [...document.querySelectorAll(".field-row.step")].map((row) => ({ instruction: row.querySelector('[data-field="instruction"]').value })); rows.push({}); renderStepFields(rows); });
 document.addEventListener("click", (event) => { const button = event.target.closest("[data-remove]"); if (!button) return; const row = button.closest(".field-row"); row.remove(); document.querySelectorAll(".field-row.step .step-number").forEach((item, index) => { item.textContent = index + 1; }); });
