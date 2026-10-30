@@ -50,7 +50,9 @@ export async function ensureSubstitutionCatalog(prisma) {
     });
   }
   const existing = await prisma.ingredientSubstitute.findMany({ include: { ingredient: true, substitute: true, allergen: true } });
-  const staleIds = existing.filter((row) => !currentKeys.has(`${row.allergen.name}|${row.ingredient.name}|${row.substitute.name}`)).map((row) => row.id);
+  const staleIds = existing
+    .filter((row) => row.allergen?.name && !currentKeys.has(`${row.allergen.name}|${row.ingredient.name}|${row.substitute.name}`))
+    .map((row) => row.id);
   if (staleIds.length > 0) await prisma.ingredientSubstitute.deleteMany({ where: { id: { in: staleIds } } });
 }
 
