@@ -37,3 +37,13 @@
 - Added async error forwarding for the assistant, suggestions, substitutions, and account-preference routes.
 - Added fake-provider tests for both live LLM paths, including ingredient repair and parenthetical notes.
 - Expanded regression coverage to 35 passing tests.
+
+### Final Review Corrections
+
+- Moved the Express error handler after every route and wrapped all asynchronous route handlers.
+- Added a permanent limited-catalog safety caveat to saved-recipe substitution results.
+- Expanded catalog aliases for dairy, eggs, gluten, tree nuts, peanuts, soy, tortillas, and common grains.
+- Normalized generic nut terms to both peanut and tree-nut restrictions and rejected unsupported suggestion allergens consistently.
+- Improved provider ingredient repair by splitting comma notes and moving quantities and units into structured fields.
+- Added duplicate-row cleanup before the substitution unique index is created.
+- Expanded regression coverage to 36 passing tests.

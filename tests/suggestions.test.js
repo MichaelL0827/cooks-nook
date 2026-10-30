@@ -82,6 +82,16 @@ test("allergen settings reject unsupported values", async () => {
   assert.match(response.body.error, /Unsupported allergens/);
 });
 
+test("generic nut and synonym allergen values normalize consistently", async () => {
+  const preferences = await request("PUT", "/me/allergens", { allergens: ["nut", "wheat", "egg"] }, user.token);
+  assert.equal(preferences.status, 200);
+  assert.deepEqual(preferences.body.allergens.sort(), ["eggs", "gluten", "peanuts", "tree nuts"].sort());
+  const suggestion = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["soy"] }, user.token);
+  assert.equal(suggestion.status, 200);
+  const unsupported = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["mystery allergen"] }, user.token);
+  assert.equal(unsupported.status, 400);
+});
+
 test("ingredient maker rate limits repeated requests", async () => {
   const limitedUser = await registerTestUser();
   userIds.push(limitedUser.userId);

@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
+import asyncHandler from "../middleware/asyncHandler.js";
 
 const router = Router();
 
@@ -14,7 +15,7 @@ function isValidEmail(email) {
 
 // POST /auth/register
 // body: { email, password }
-router.post("/register", async (req, res) => {
+router.post("/register", asyncHandler(async (req, res) => {
   const { email, password } = req.body ?? {};
 
   if (!isValidEmail(email)) {
@@ -39,11 +40,11 @@ router.post("/register", async (req, res) => {
   const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
 
   res.status(201).json({ user, token });
-});
+}));
 
 // POST /auth/login
 // body: { email, password }
-router.post("/login", async (req, res) => {
+router.post("/login", asyncHandler(async (req, res) => {
   const { email, password } = req.body ?? {};
 
   if (!isValidEmail(email) || typeof password !== "string") {
@@ -67,6 +68,6 @@ router.post("/login", async (req, res) => {
     user: { id: user.id, email: user.email, createdAt: user.createdAt },
     token,
   });
-});
+}));
 
 export default router;

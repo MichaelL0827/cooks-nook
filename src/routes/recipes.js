@@ -1,10 +1,11 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
+import asyncHandler from "../middleware/asyncHandler.js";
 
 const router = Router();
 
-const ingredientNamePattern = /^[\p{L}]+(?:[ '-][\p{L}]+)*$/u;
+const ingredientNamePattern = /^(?:\p{L}+|\d+%)(?:[ '-](?:\p{L}+|\d+%))*$/u;
 const tagNamePattern = /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u;
 
 // Every recipe route requires a logged-in user, and every query below is
@@ -34,7 +35,7 @@ function validateRecipeBody(body) {
         !ingredientNamePattern.test(name.trim())
       ) {
         errors.push(
-          `ingredients[${index}].name must contain words using letters, spaces, hyphens, or apostrophes.`,
+          `ingredients[${index}].name must contain words using letters, spaces, hyphens, apostrophes, or percentage tokens.`,
         );
       }
     });
@@ -102,7 +103,7 @@ async function replaceRecipeTags(tx, recipeId, tags) {
 
 // GET /recipes — list the current user's recipes (summary fields only;
 // use GET /recipes/:id for full detail with steps/ingredients/tags).
-router.get("/", async (req, res) => {
+router.get("/", asyncHandler(async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const tag = typeof req.query.tag === "string" ? req.query.tag.trim() : "";
   const ingredient = typeof req.query.ingredient === "string" ? req.query.ingredient.trim() : "";
@@ -128,10 +129,10 @@ router.get("/", async (req, res) => {
     },
   });
   res.json({ recipes });
-});
+}));
 
 // GET /recipes/:id — full detail for one of the current user's recipes.
-router.get("/:id", async (req, res) => {
+router.get("/:id", asyncHandler(async (req, res) => {
   const recipe = await prisma.recipe.findFirst({
     where: { id: req.params.id, userId: req.userId },
     include: recipeInclude,
@@ -141,13 +142,13 @@ router.get("/:id", async (req, res) => {
     return res.status(404).json({ error: "Recipe not found." });
   }
   res.json({ recipe });
-});
+}));
 
 // POST /recipes
 // body: { name, servings?, prepMinutes?, cookMinutes?,
 //         ingredients?: [{ name, quantity?, unit?, notes? }],
 //         steps?: [{ instruction }] }
-router.post("/", async (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const errors = validateRecipeBody(req.body ?? {});
   if (errors.length > 0) {
     return res.status(400).json({ error: errors.join(" ") });
@@ -193,11 +194,11 @@ router.post("/", async (req, res) => {
   });
 
   res.status(201).json({ recipe });
-});
+}));
 
 // PUT /recipes/:id — full update. Replaces steps and ingredients wholesale
 // (simpler and safer than diffing individual items for a v1).
-router.put("/:id", async (req, res) => {
+router.put("/:id", asyncHandler(async (req, res) => {
   const existing = await prisma.recipe.findFirst({
     where: { id: req.params.id, userId: req.userId },
   });
@@ -252,10 +253,10 @@ router.put("/:id", async (req, res) => {
   });
 
   res.json({ recipe });
-});
+}));
 
 // DELETE /recipes/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", asyncHandler(async (req, res) => {
   const existing = await prisma.recipe.findFirst({
     where: { id: req.params.id, userId: req.userId },
   });
@@ -267,6 +268,6 @@ router.delete("/:id", async (req, res) => {
   // means this alone cleans up related rows.
   await prisma.recipe.delete({ where: { id: existing.id } });
   res.status(204).send();
-});
+}));
 
 export default router;

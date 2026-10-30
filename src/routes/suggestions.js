@@ -1,7 +1,8 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
-import { ingredientNameMatches, normalizeAllergenName } from "../lib/substitutions.js";
+import { ingredientNameMatches, normalizeAllergenNames } from "../lib/substitutions.js";
+import { supportedAllergens } from "../lib/substitutions.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
 
@@ -9,7 +10,7 @@ const router = Router();
 router.use(requireAuth);
 router.use(userRateLimit({ max: 10 }));
 
-const ingredientNamePattern = /^[\p{L}]+(?:[ '-][\p{L}]+)*$/u;
+const ingredientNamePattern = /^(?:\p{L}+|\d+%)(?:[ '-](?:\p{L}+|\d+%))*$/u;
 
 const suggestionSchema = {
   type: "object",
@@ -96,14 +97,24 @@ async function getDatabaseSubstitutions(allergens, ingredients) {
 function sanitizeSuggestion(suggestion) {
   const sanitizeIngredient = (item) => {
     if (!item || typeof item.name !== "string") return null;
-    const match = item.name.trim().match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-    let name = (match ? match[1] : item.name).trim();
-    const parentheticalNotes = match?.[2]?.trim();
-    name = name.replace(/^\s*\d+(?:[./]\d+)?\s*(?:cups?|tablespoons?|teaspoons?|tbsp|tsp|ounces?|oz|pounds?|lbs?|grams?|g|milliliters?|ml)\s+/i, "");
+    const parenthetical = item.name.trim().match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    let name = (parenthetical ? parenthetical[1] : item.name).trim();
+    const parentheticalNotes = parenthetical?.[2]?.trim();
+    const commaParts = name.split(",");
+    name = commaParts.shift().trim();
+    const commaNotes = commaParts.join(",").trim();
+    let quantity = typeof item.quantity === "number" && Number.isFinite(item.quantity) ? item.quantity : null;
+    let unit = typeof item.unit === "string" ? item.unit.trim() || null : null;
+    const measure = name.match(/^\s*(\d+(?:\.\d+)?|\d+\s*\/\s*\d+)\s*(cups?|tablespoons?|teaspoons?|tbsp|tsp|ounces?|oz|pounds?|lbs?|grams?|g|milliliters?|ml)\s+(.+)$/i);
+    if (measure) {
+      if (quantity === null) quantity = measure[1].includes("/") ? measure[1].split("/").map(Number).reduce((a, b) => a / b) : Number(measure[1]);
+      if (!unit) unit = measure[2];
+      name = measure[3].trim();
+    }
     name = name.replace(/[^\p{L}' -]/gu, " ").replace(/\s+/g, " ").trim();
     if (!ingredientNamePattern.test(name)) return null;
-    const notes = [item.notes, parentheticalNotes].filter(Boolean).join("; ") || null;
-    return { ...item, name, notes };
+    const notes = [item.notes, parentheticalNotes, commaNotes].filter(Boolean).join("; ") || null;
+    return { ...item, name, quantity, unit, notes };
   };
   const assumptions = Array.isArray(suggestion.assumptions) ? suggestion.assumptions.filter((item) => typeof item === "string") : [];
   const rawIngredients = Array.isArray(suggestion.ingredients) ? suggestion.ingredients : [];
@@ -231,7 +242,9 @@ router.post("/", asyncHandler(async (req, res) => {
   if (errors.length > 0) return res.status(400).json({ error: errors.join(" ") });
 
   const storedAllergens = await prisma.userAllergen.findMany({ where: { userId: req.userId }, include: { allergen: true } });
-  const allergens = body.allergens?.length ? body.allergens.map(normalizeAllergenName) : storedAllergens.map((item) => item.allergen.name);
+  const allergens = body.allergens?.length ? [...new Set(body.allergens.flatMap(normalizeAllergenNames))] : storedAllergens.map((item) => item.allergen.name);
+  const unsupportedAllergens = allergens.filter((name) => !supportedAllergens.includes(name));
+  if (unsupportedAllergens.length > 0) return res.status(400).json({ error: `Unsupported allergens: ${unsupportedAllergens.join(", ")}. Supported values: ${supportedAllergens.join(", ")}.` });
   const input = {
     recipeName: body.recipeName.trim(),
     servings: body.servings ?? null,

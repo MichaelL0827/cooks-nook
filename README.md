@@ -113,6 +113,8 @@ delete another user's recipes.
   ingredient names are sanitized before they reach recipe CRUD validation.
 - The substitution catalog is initialized once at application startup and uses
   a unique ingredient/substitute/allergen constraint to prevent duplicate rows.
+- The unique-index migration removes duplicate mappings before creating the
+  constraint, which makes it safer to apply to an existing development database.
 
 ## Cooking Assistant
 

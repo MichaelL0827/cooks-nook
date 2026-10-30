@@ -18,6 +18,7 @@ function responseFor(input) {
         { name: "1% milk", quantity: 1, unit: "cup", notes: null },
         { name: "bad, ingredient", quantity: 1, unit: null, notes: null },
         { name: "***", quantity: 1, unit: null, notes: null },
+        { name: "2 cups flour", quantity: null, unit: null, notes: null },
       ],
       steps: [{ instruction: "Mix and cook until done." }],
       tags: ["breakfast"],
@@ -54,8 +55,11 @@ test("live provider suggestion path sanitizes names and preserves parenthetical 
   const response = await request("POST", "/recipes/suggest", { recipeName: "Provider Pancakes" }, user.token);
   assert.equal(response.status, 200);
   assert.equal(response.body.source, "llm");
-  assert.deepEqual(response.body.suggestion.ingredients.map((item) => item.name), ["Parmesan", "milk", "bad ingredient"]);
+  assert.deepEqual(response.body.suggestion.ingredients.map((item) => item.name), ["Parmesan", "milk", "bad", "flour"]);
   assert.equal(response.body.suggestion.ingredients[0].notes, "grated");
+  assert.equal(response.body.suggestion.ingredients[2].notes, "ingredient");
+  assert.equal(response.body.suggestion.ingredients[3].quantity, 2);
+  assert.equal(response.body.suggestion.ingredients[3].unit, "cups");
   assert.match(response.body.suggestion.assumptions[0], /removed/);
 });
 

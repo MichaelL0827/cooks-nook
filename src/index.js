@@ -33,14 +33,14 @@ app.use("/auth", authRoutes);
 app.use("/me", meRoutes);
 app.use("/recipes/assistant", assistantRoutes);
 app.use("/recipes", substitutionRoutes);
+app.use("/recipes", recipeRoutes);
+app.use("/recipes/suggest", suggestionRoutes);
 
 app.use((error, req, res, next) => {
   console.error("Unhandled request error:", error);
   if (res.headersSent) return next(error);
   res.status(500).json({ error: "An unexpected server error occurred." });
 });
-app.use("/recipes", recipeRoutes);
-app.use("/recipes/suggest", suggestionRoutes);
 
 const PORT = process.env.PORT || 3001;
 async function start() {
