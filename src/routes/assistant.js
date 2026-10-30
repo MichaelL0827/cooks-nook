@@ -1,9 +1,12 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
+import asyncHandler from "../middleware/asyncHandler.js";
+import { userRateLimit } from "../middleware/rateLimit.js";
 
 const router = Router();
 router.use(requireAuth);
+router.use(userRateLimit({ max: 10 }));
 
 const assistantSchema = {
   type: "object",
@@ -64,7 +67,7 @@ async function requestLlmAnswer(recipe, question, allergens) {
   return JSON.parse(text);
 }
 
-router.post("/", async (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const errors = validateRequest(req.body ?? {});
   if (errors.length > 0) return res.status(400).json({ error: errors.join(" ") });
   const recipe = await prisma.recipe.findFirst({
@@ -85,6 +88,6 @@ router.post("/", async (req, res) => {
     console.error("Cooking assistant failed:", error.message);
     return res.status(502).json({ error: "The cooking assistant is temporarily unavailable." });
   }
-});
+}));
 
 export default router;

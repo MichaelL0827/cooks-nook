@@ -19,12 +19,12 @@ async function findAvailablePort() {
   });
 }
 
-export async function startServer() {
+export async function startServer(overrides = {}) {
   const port = process.env.TEST_PORT ?? (await findAvailablePort());
   baseUrl = `http://localhost:${port}`;
   serverProcess = spawn(process.execPath, ["src/index.js"], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: port, LLM_OFFLINE_MODE: "true" },
+    env: { ...process.env, PORT: port, LLM_OFFLINE_MODE: "true", ...overrides },
     stdio: ["ignore", "pipe", "pipe"],
   });
 

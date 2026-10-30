@@ -27,3 +27,13 @@
 - Replaced broad substring matching with normalized exact ingredient matching.
 - Added input limits, per-user suggestion rate limiting, provider-name sanitization, and ingredient-note preservation in the editor.
 - Expanded regression coverage to 29 passing tests.
+
+### Review Follow-up
+
+- Added shared allergen synonym normalization, including peanut, milk, lactose, wheat, egg, and nut aliases.
+- Expanded substitution aliases and added potential-allergen flags plus an explicit no-known-substitution warning.
+- Moved catalog synchronization to application startup and added a unique compound database constraint.
+- Added the same prunable per-user rate limiter to the cooking assistant and ingredient maker.
+- Added async error forwarding for the assistant, suggestions, substitutions, and account-preference routes.
+- Added fake-provider tests for both live LLM paths, including ingredient repair and parenthetical notes.
+- Expanded regression coverage to 35 passing tests.

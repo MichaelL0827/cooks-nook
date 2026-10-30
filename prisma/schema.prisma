@@ -135,4 +135,5 @@ model IngredientSubstitute {
 
   @@index([ingredientId])
   @@index([allergenId])
+  @@unique([ingredientId, substituteId, allergenId])
 }

@@ -37,3 +37,12 @@ test("cooking assistant cannot use another user's recipe", async () => {
   const response = await request("POST", "/recipes/assistant", { recipeId: created.body.recipe.id, question: "How do I make this?" }, otherUser.token);
   assert.equal(response.status, 404);
 });
+
+test("cooking assistant rate limits repeated requests", async () => {
+  const limitedUser = await registerTestUser();
+  userIds.push(limitedUser.userId);
+  const created = await request("POST", "/recipes", { name: "Rate Limited Assistant" }, limitedUser.token);
+  let last;
+  for (let index = 0; index < 11; index += 1) last = await request("POST", "/recipes/assistant", { recipeId: created.body.recipe.id, question: "What is this step?" }, limitedUser.token);
+  assert.equal(last.status, 429);
+});

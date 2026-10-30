@@ -2,12 +2,13 @@ import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
 import { normalizeAllergenName, supportedAllergens } from "../lib/substitutions.js";
+import asyncHandler from "../middleware/asyncHandler.js";
 
 const router = Router();
 
 // GET /me — returns the currently authenticated user.
 // Proves the token issued by /auth/login or /auth/register actually works.
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.userId },
     select: { id: true, email: true, createdAt: true },
@@ -18,14 +19,14 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   res.json({ user });
-});
+}));
 
-router.get("/allergens", requireAuth, async (req, res) => {
+router.get("/allergens", requireAuth, asyncHandler(async (req, res) => {
   const allergens = await prisma.userAllergen.findMany({ where: { userId: req.userId }, include: { allergen: true } });
   res.json({ allergens: allergens.map((item) => item.allergen.name) });
-});
+}));
 
-router.put("/allergens", requireAuth, async (req, res) => {
+router.put("/allergens", requireAuth, asyncHandler(async (req, res) => {
   if (!Array.isArray(req.body?.allergens) || req.body.allergens.length > 20 || req.body.allergens.some((item) => typeof item !== "string" || item.trim().length < 2 || item.length > 40)) {
     return res.status(400).json({ error: "allergens must be an array of up to 20 short strings." });
   }
@@ -41,6 +42,6 @@ router.put("/allergens", requireAuth, async (req, res) => {
     return tx.userAllergen.findMany({ where: { userId: req.userId }, include: { allergen: true } });
   });
   res.json({ allergens: allergens.map((item) => item.allergen.name) });
-});
+}));
 
 export default router;

@@ -94,7 +94,8 @@ delete another user's recipes.
 - `GET /me/allergens` — returns the authenticated user's persisted allergen settings.
 - `PUT /me/allergens` — replaces the user's allergen settings. Supported starter values are `dairy`, `peanuts`, `tree nuts`, `eggs`, and `gluten`.
 - `GET /recipes/:id/substitutions` — returns database-backed substitutions for the saved recipe and the user's persisted allergens.
-- The substitution catalog is stored in the `Allergen`, `UserAllergen`, `Ingredient`, and `IngredientSubstitute` tables. Ingredient names are matched exactly after normalization so broad substrings do not create unsafe false matches.
+- The substitution catalog is stored in the `Allergen`, `UserAllergen`, `Ingredient`, and `IngredientSubstitute` tables. Shared aliases cover common forms such as `whole milk`, `unsalted butter`, `almonds`, `walnuts`, `pasta`, `flour tortillas`, and `soy sauce`; matching is exact against those aliases so broad substrings do not create unsafe false matches.
+- Saved-recipe checks return both possible allergen flags and substitutions. A missing substitution is explicitly presented as unknown rather than as evidence that the recipe is safe.
 
 ## Ingredient Maker
 
@@ -110,6 +111,8 @@ delete another user's recipes.
   substitute is automatically safe.
 - Draft requests are bounded and rate-limited per authenticated user. Provider
   ingredient names are sanitized before they reach recipe CRUD validation.
+- The substitution catalog is initialized once at application startup and uses
+  a unique ingredient/substitute/allergen constraint to prevent duplicate rows.
 
 ## Cooking Assistant
 

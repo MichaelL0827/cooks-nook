@@ -76,6 +76,28 @@ test("ingredient maker rejects oversized input", async () => {
   assert.match(response.body.error, /120 characters/);
 });
 
+test("allergen settings reject unsupported values", async () => {
+  const response = await request("PUT", "/me/allergens", { allergens: ["mystery allergen"] }, user.token);
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /Unsupported allergens/);
+});
+
+test("ingredient maker rate limits repeated requests", async () => {
+  const limitedUser = await registerTestUser();
+  userIds.push(limitedUser.userId);
+  let last;
+  for (let index = 0; index < 11; index += 1) last = await request("POST", "/recipes/suggest", { recipeName: "Rate Limit Test" }, limitedUser.token);
+  assert.equal(last.status, 429);
+});
+
+test("saved substitutions enforce recipe ownership", async () => {
+  const otherUser = await registerTestUser();
+  userIds.push(otherUser.userId);
+  const created = await request("POST", "/recipes", { name: "Owner Only Recipe", ingredients: [{ name: "milk" }] }, user.token);
+  const response = await request("GET", `/recipes/${created.body.recipe.id}/substitutions`, undefined, otherUser.token);
+  assert.equal(response.status, 404);
+});
+
 test("generated drafts can be edited and saved through recipe CRUD", async () => {
   const draft = await request(
     "POST",

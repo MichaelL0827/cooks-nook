@@ -9,6 +9,8 @@ import recipeRoutes from "./routes/recipes.js";
 import suggestionRoutes from "./routes/suggestions.js";
 import assistantRoutes from "./routes/assistant.js";
 import substitutionRoutes from "./routes/substitutions.js";
+import prisma from "./lib/prisma.js";
+import { ensureSubstitutionCatalog } from "./lib/substitutions.js";
 
 const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET"];
 for (const name of requiredEnvVars) {
@@ -31,10 +33,24 @@ app.use("/auth", authRoutes);
 app.use("/me", meRoutes);
 app.use("/recipes/assistant", assistantRoutes);
 app.use("/recipes", substitutionRoutes);
+
+app.use((error, req, res, next) => {
+  console.error("Unhandled request error:", error);
+  if (res.headersSent) return next(error);
+  res.status(500).json({ error: "An unexpected server error occurred." });
+});
 app.use("/recipes", recipeRoutes);
 app.use("/recipes/suggest", suggestionRoutes);
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Cooks Nook API listening on http://localhost:${PORT}`);
+async function start() {
+  await ensureSubstitutionCatalog(prisma);
+  app.listen(PORT, () => {
+    console.log(`Cooks Nook API listening on http://localhost:${PORT}`);
+  });
+}
+
+start().catch((error) => {
+  console.error("Cooks Nook failed to start:", error.message);
+  process.exit(1);
 });

@@ -1,12 +1,13 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
-import { ensureSubstitutionCatalog, ingredientNameMatches } from "../lib/substitutions.js";
+import { ingredientNameMatches, normalizeAllergenName } from "../lib/substitutions.js";
+import asyncHandler from "../middleware/asyncHandler.js";
+import { userRateLimit } from "../middleware/rateLimit.js";
 
 const router = Router();
 router.use(requireAuth);
-const requestWindows = new Map();
-const MAX_REQUESTS_PER_MINUTE = 10;
+router.use(userRateLimit({ max: 10 }));
 
 const ingredientNamePattern = /^[\p{L}]+(?:[ '-][\p{L}]+)*$/u;
 
@@ -86,20 +87,30 @@ function validateRequest(body) {
 }
 
 async function getDatabaseSubstitutions(allergens, ingredients) {
-  await ensureSubstitutionCatalog(prisma);
   const allergenRows = await prisma.allergen.findMany({ where: { name: { in: allergens } } });
   const allergenIds = allergenRows.map((item) => item.id);
   const rows = await prisma.ingredientSubstitute.findMany({ where: { allergenId: { in: allergenIds } }, include: { ingredient: true, substitute: true, allergen: true } });
-  return rows.filter((row) => ingredients.some((item) => ingredientNameMatches(item.name, row.ingredient.name))).map((row) => ({ ingredient: row.ingredient.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings." }));
+  return rows.filter((row) => ingredients.some((item) => ingredientNameMatches(item.name, row.ingredient.name))).map((row) => ({ ingredient: row.ingredient.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" }));
 }
 
 function sanitizeSuggestion(suggestion) {
-  const validIngredient = (item) => item && typeof item.name === "string" && ingredientNamePattern.test(item.name.trim());
+  const sanitizeIngredient = (item) => {
+    if (!item || typeof item.name !== "string") return null;
+    const match = item.name.trim().match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    let name = (match ? match[1] : item.name).trim();
+    const parentheticalNotes = match?.[2]?.trim();
+    name = name.replace(/^\s*\d+(?:[./]\d+)?\s*(?:cups?|tablespoons?|teaspoons?|tbsp|tsp|ounces?|oz|pounds?|lbs?|grams?|g|milliliters?|ml)\s+/i, "");
+    name = name.replace(/[^\p{L}' -]/gu, " ").replace(/\s+/g, " ").trim();
+    if (!ingredientNamePattern.test(name)) return null;
+    const notes = [item.notes, parentheticalNotes].filter(Boolean).join("; ") || null;
+    return { ...item, name, notes };
+  };
   const assumptions = Array.isArray(suggestion.assumptions) ? suggestion.assumptions.filter((item) => typeof item === "string") : [];
-  const ingredients = Array.isArray(suggestion.ingredients) ? suggestion.ingredients.filter(validIngredient).map((item) => ({ ...item, name: item.name.trim(), notes: item.notes == null ? null : String(item.notes) })) : [];
+  const rawIngredients = Array.isArray(suggestion.ingredients) ? suggestion.ingredients : [];
+  const ingredients = rawIngredients.map(sanitizeIngredient).filter(Boolean);
   const tags = Array.isArray(suggestion.tags) ? suggestion.tags.filter((item) => typeof item === "string" && /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u.test(item.trim())).map((item) => item.trim()) : [];
-  const substitutions = Array.isArray(suggestion.substitutions) ? suggestion.substitutions.filter((item) => item && typeof item.ingredient === "string" && typeof item.substitute === "string").map((item) => ({ ingredient: item.ingredient.trim(), substitute: item.substitute.trim(), reason: String(item.reason || "Common substitute."), caution: String(item.caution || "Check the product label." ) })) : [];
-  const dropped = Array.isArray(suggestion.ingredients) ? suggestion.ingredients.length - ingredients.length : 0;
+  const substitutions = Array.isArray(suggestion.substitutions) ? suggestion.substitutions.filter((item) => item && typeof item.ingredient === "string" && typeof item.substitute === "string").map((item) => ({ ingredient: item.ingredient.trim(), substitute: item.substitute.trim(), reason: String(item.reason || "Common substitute."), caution: String(item.caution || "Check the product label."), source: "llm" })) : [];
+  const dropped = rawIngredients.length - ingredients.length;
   if (dropped > 0) assumptions.push(`${dropped} provider ingredient suggestion${dropped === 1 ? " was" : "s were"} removed because its name contained unsupported characters.`);
   return { ...suggestion, assumptions, ingredients, tags, substitutions };
 }
@@ -214,23 +225,13 @@ async function requestLlmSuggestion(input) {
   return JSON.parse(text);
 }
 
-router.post("/", async (req, res) => {
-  const now = Date.now();
-  const windowStart = requestWindows.get(req.userId) ?? { startedAt: now, count: 0 };
-  if (now - windowStart.startedAt >= 60_000) {
-    windowStart.startedAt = now;
-    windowStart.count = 0;
-  }
-  if (windowStart.count >= MAX_REQUESTS_PER_MINUTE) return res.status(429).json({ error: "Too many suggestion requests. Please try again in a minute." });
-  windowStart.count += 1;
-  requestWindows.set(req.userId, windowStart);
-
+router.post("/", asyncHandler(async (req, res) => {
   const body = req.body ?? {};
   const errors = validateRequest(body);
   if (errors.length > 0) return res.status(400).json({ error: errors.join(" ") });
 
   const storedAllergens = await prisma.userAllergen.findMany({ where: { userId: req.userId }, include: { allergen: true } });
-  const allergens = body.allergens?.length ? body.allergens.map((item) => item.trim().toLowerCase()) : storedAllergens.map((item) => item.allergen.name);
+  const allergens = body.allergens?.length ? body.allergens.map(normalizeAllergenName) : storedAllergens.map((item) => item.allergen.name);
   const input = {
     recipeName: body.recipeName.trim(),
     servings: body.servings ?? null,
@@ -251,6 +252,6 @@ router.post("/", async (req, res) => {
     console.error("Recipe suggestion failed:", error.message);
     return res.status(502).json({ error: "Recipe suggestions are temporarily unavailable." });
   }
-});
+}));
 
 export default router;
