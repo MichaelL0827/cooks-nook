@@ -56,6 +56,26 @@ test("ingredient maker returns allergen-aware substitution recommendations", asy
   assert.ok(response.body.suggestion.substitutions.some((item) => /milk/i.test(item.ingredient)));
 });
 
+test("saved recipe substitutions use persisted allergens and exact ingredient names", async () => {
+  const preferences = await request("PUT", "/me/allergens", { allergens: ["dairy"] }, user.token);
+  assert.equal(preferences.status, 200);
+  assert.deepEqual(preferences.body.allergens, ["dairy"]);
+
+  const created = await request("POST", "/recipes", {
+    name: "Exact Match Test",
+    ingredients: [{ name: "milk" }, { name: "coconut milk" }, { name: "eggplant" }],
+  }, user.token);
+  const response = await request("GET", `/recipes/${created.body.recipe.id}/substitutions`, undefined, user.token);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.substitutions.map((item) => item.ingredient), ["milk"]);
+});
+
+test("ingredient maker rejects oversized input", async () => {
+  const response = await request("POST", "/recipes/suggest", { recipeName: "x".repeat(121) }, user.token);
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /120 characters/);
+});
+
 test("generated drafts can be edited and saved through recipe CRUD", async () => {
   const draft = await request(
     "POST",

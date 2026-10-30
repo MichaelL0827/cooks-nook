@@ -23,7 +23,7 @@ test("cooking assistant answers using saved recipe context", async () => {
   const response = await request("POST", "/recipes/assistant", { recipeId: created.body.recipe.id, question: "What does until golden mean?" }, user.token);
   assert.equal(response.status, 200);
   assert.equal(response.body.source, "offline-fallback");
-  assert.match(response.body.answer.answer, /Pancakes|step/i);
+  assert.match(response.body.answer.answer, /Cook until golden/i);
 });
 
 test("cooking assistant validates questions", async () => {

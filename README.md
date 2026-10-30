@@ -89,6 +89,13 @@ delete another user's recipes.
   ingredients are replaced wholesale (not merged/diffed).
 - `DELETE /recipes/:id` — deletes a recipe and its steps/ingredient links.
 
+## Dietary restrictions and substitutions
+
+- `GET /me/allergens` — returns the authenticated user's persisted allergen settings.
+- `PUT /me/allergens` — replaces the user's allergen settings. Supported starter values are `dairy`, `peanuts`, `tree nuts`, `eggs`, and `gluten`.
+- `GET /recipes/:id/substitutions` — returns database-backed substitutions for the saved recipe and the user's persisted allergens.
+- The substitution catalog is stored in the `Allergen`, `UserAllergen`, `Ingredient`, and `IngredientSubstitute` tables. Ingredient names are matched exactly after normalization so broad substrings do not create unsafe false matches.
+
 ## Ingredient Maker
 
 - `POST /recipes/suggest` — protected route that accepts a recipe name,
@@ -101,6 +108,8 @@ delete another user's recipes.
 - When allergens are provided, the response includes editable substitution
   recommendations with a reason and a caution instead of claiming that a
   substitute is automatically safe.
+- Draft requests are bounded and rate-limited per authenticated user. Provider
+  ingredient names are sanitized before they reach recipe CRUD validation.
 
 ## Cooking Assistant
 

@@ -1,4 +1,4 @@
-const state = { token: localStorage.getItem("cooks-nook-token"), email: localStorage.getItem("cooks-nook-email"), recipes: [], selectedId: null, authMode: "login", editingId: null };
+const state = { token: localStorage.getItem("cooks-nook-token"), email: localStorage.getItem("cooks-nook-email"), allergens: [], recipes: [], selectedId: null, authMode: "login", editingId: null };
 const $ = (selector) => document.querySelector(selector);
 
 async function api(path, options = {}) {
@@ -10,9 +10,23 @@ async function api(path, options = {}) {
   return body;
 }
 
-function showApp() { $("#auth-view").classList.add("hidden"); $("#app-view").classList.remove("hidden"); $("#user-email").textContent = state.email; loadRecipes(); }
+async function showApp() { $("#auth-view").classList.add("hidden"); $("#app-view").classList.remove("hidden"); $("#user-email").textContent = state.email; await loadAllergens(); loadRecipes(); }
 function showAuth() { $("#app-view").classList.add("hidden"); $("#auth-view").classList.remove("hidden"); }
 function setMessage(selector, message = "") { $(selector).textContent = message; }
+
+async function loadAllergens() {
+  try { state.allergens = (await api("/me/allergens")).allergens; $("#user-allergens").value = state.allergens.join(", "); }
+  catch (error) { setMessage("#recipe-message", error.message); }
+}
+
+async function saveAllergens() {
+  try {
+    const allergens = $("#user-allergens").value.split(",").map((item) => item.trim()).filter(Boolean);
+    state.allergens = (await api("/me/allergens", { method: "PUT", body: JSON.stringify({ allergens }) })).allergens;
+    $("#user-allergens").value = state.allergens.join(", ");
+    setMessage("#recipe-message", "Saved dietary restrictions.");
+  } catch (error) { setMessage("#recipe-message", error.message); }
+}
 
 async function loadRecipes() {
   const params = new URLSearchParams();
@@ -35,7 +49,9 @@ function renderRecipeList() {
 async function selectRecipe(id) {
   const data = await api(`/recipes/${id}`); state.selectedId = id; renderRecipeList(); $("#empty-state").classList.add("hidden"); $("#recipe-form").classList.add("hidden"); $("#recipe-detail").classList.remove("hidden");
   const recipe = data.recipe; const tags = recipe.tags.map(({ tag }) => `<span class="tag">${escapeHtml(tag.name)}</span>`).join("");
-  $("#recipe-detail").innerHTML = `<div class="detail-heading"><div><p class="eyebrow">Saved recipe</p><h1>${escapeHtml(recipe.name)}</h1><div class="detail-meta">${recipe.servings ? `${recipe.servings} servings` : ""}${recipe.prepMinutes !== null ? ` · ${recipe.prepMinutes} min prep` : ""}${recipe.cookMinutes !== null ? ` · ${recipe.cookMinutes} min cook` : ""}</div><div>${tags}</div></div><div class="detail-actions"><button class="button ghost" id="edit-recipe">Edit</button><button class="button ghost" id="delete-recipe">Delete</button></div></div><div class="detail-columns"><section><h3>Ingredients</h3><ul class="ingredient-list">${recipe.ingredients.map((item) => `<li>${item.quantity ?? ""} ${escapeHtml(item.unit || "")} ${escapeHtml(item.ingredient.name)}${item.notes ? `, ${escapeHtml(item.notes)}` : ""}</li>`).join("")}</ul></section><section><h3>Steps</h3><ol class="step-list">${recipe.steps.map((step) => `<li>${escapeHtml(step.instruction)}</li>`).join("")}</ol></section></div><section class="assistant"><h3>Cooking assistant</h3><p class="muted">Ask about a step, timing cue, technique, or ingredient substitution.</p><form id="assistant-form" class="assistant-form"><input id="assistant-question" required maxlength="500" placeholder="What does 'until golden' mean?" /><button class="button primary" type="submit">Ask</button></form><p id="assistant-message" class="form-message"></p><div id="assistant-answer" class="assistant-answer hidden"></div></section>`;
+  let substitutions = [];
+  try { substitutions = (await api(`/recipes/${id}/substitutions`)).substitutions; } catch { substitutions = []; }
+  $("#recipe-detail").innerHTML = `<div class="detail-heading"><div><p class="eyebrow">Saved recipe</p><h1>${escapeHtml(recipe.name)}</h1><div class="detail-meta">${recipe.servings ? `${recipe.servings} servings` : ""}${recipe.prepMinutes !== null ? ` · ${recipe.prepMinutes} min prep` : ""}${recipe.cookMinutes !== null ? ` · ${recipe.cookMinutes} min cook` : ""}</div><div>${tags}</div></div><div class="detail-actions"><button class="button ghost" id="edit-recipe">Edit</button><button class="button ghost" id="delete-recipe">Delete</button></div></div><div class="detail-columns"><section><h3>Ingredients</h3><ul class="ingredient-list">${recipe.ingredients.map((item) => `<li>${item.quantity ?? ""} ${escapeHtml(item.unit || "")} ${escapeHtml(item.ingredient.name)}${item.notes ? `, ${escapeHtml(item.notes)}` : ""}</li>`).join("")}</ul>${substitutions.length ? `<h3>Saved substitutions</h3><ul class="ingredient-list">${substitutions.map((item) => `<li>${escapeHtml(item.ingredient)} → ${escapeHtml(item.substitute)} <small class="muted">(${escapeHtml(item.allergen)})</small></li>`).join("")}</ul>` : ""}</section><section><h3>Steps</h3><ol class="step-list">${recipe.steps.map((step) => `<li>${escapeHtml(step.instruction)}</li>`).join("")}</ol></section></div><section class="assistant"><h3>Cooking assistant</h3><p class="muted">Ask about a step, timing cue, technique, or ingredient substitution.</p><form id="assistant-form" class="assistant-form"><input id="assistant-question" required maxlength="500" placeholder="What does 'until golden' mean?" /><button class="button primary" type="submit">Ask</button></form><p id="assistant-message" class="form-message"></p><div id="assistant-answer" class="assistant-answer hidden"></div></section>`;
   $("#edit-recipe").addEventListener("click", () => openEditor(recipe)); $("#delete-recipe").addEventListener("click", () => deleteRecipe(recipe.id)); $("#assistant-form").addEventListener("submit", (event) => askAssistant(event, recipe.id));
 }
 
@@ -57,12 +73,12 @@ async function askAssistant(event, recipeId) {
 }
 
 function showEmpty() { $("#empty-state").classList.remove("hidden"); $("#recipe-form").classList.add("hidden"); $("#recipe-detail").classList.add("hidden"); state.selectedId = null; renderRecipeList(); }
-function openNewEditor() { state.editingId = null; $("#editor-eyebrow").textContent = "New recipe"; $("#recipe-form").reset(); renderIngredientFields([{}]); renderStepFields([{}]); openEditorView(); }
-function openEditor(recipe) { state.editingId = recipe.id; $("#editor-eyebrow").textContent = "Edit recipe"; $("#recipe-name").value = recipe.name; $("#recipe-servings").value = recipe.servings ?? ""; $("#recipe-prep").value = recipe.prepMinutes ?? ""; $("#recipe-cook").value = recipe.cookMinutes ?? ""; $("#recipe-tags").value = recipe.tags.map(({ tag }) => tag.name).join(", "); renderIngredientFields(recipe.ingredients); renderStepFields(recipe.steps); openEditorView(); }
+function openNewEditor() { state.editingId = null; $("#editor-eyebrow").textContent = "New recipe"; $("#recipe-form").reset(); $("#recipe-allergens").value = state.allergens.join(", "); renderIngredientFields([{}]); renderStepFields([{}]); openEditorView(); }
+function openEditor(recipe) { state.editingId = recipe.id; $("#editor-eyebrow").textContent = "Edit recipe"; $("#recipe-name").value = recipe.name; $("#recipe-servings").value = recipe.servings ?? ""; $("#recipe-prep").value = recipe.prepMinutes ?? ""; $("#recipe-cook").value = recipe.cookMinutes ?? ""; $("#recipe-tags").value = recipe.tags.map(({ tag }) => tag.name).join(", "); $("#recipe-allergens").value = state.allergens.join(", "); renderIngredientFields(recipe.ingredients); renderStepFields(recipe.steps); openEditorView(); }
 function openEditorView() { $("#empty-state").classList.add("hidden"); $("#recipe-detail").classList.add("hidden"); $("#recipe-form").classList.remove("hidden"); }
-function renderIngredientFields(items) { $("#ingredient-fields").innerHTML = items.map((item, index) => `<div class="field-row ingredient-row"><input data-field="name" value="${escapeAttr(item.ingredient?.name || item.name || "")}" placeholder="Ingredient" required /><input data-field="quantity" value="${item.quantity ?? ""}" type="number" min="0" step="any" placeholder="Qty" /><input data-field="unit" value="${escapeAttr(item.unit || "")}" placeholder="Unit" /><button type="button" class="remove-button" data-remove="ingredient" aria-label="Remove ingredient">×</button></div>`).join(""); }
+function renderIngredientFields(items) { $("#ingredient-fields").innerHTML = items.map((item, index) => `<div class="field-row ingredient-row"><input data-field="name" value="${escapeAttr(item.ingredient?.name || item.name || "")}" placeholder="Ingredient" required /><input data-field="quantity" value="${item.quantity ?? ""}" type="number" min="0" step="any" placeholder="Qty" /><input data-field="unit" value="${escapeAttr(item.unit || "")}" placeholder="Unit" /><input data-field="notes" value="${escapeAttr(item.notes || "")}" placeholder="Notes" /><button type="button" class="remove-button" data-remove="ingredient" aria-label="Remove ingredient">×</button></div>`).join(""); }
 function renderStepFields(items) { $("#step-fields").innerHTML = items.map((item, index) => `<div class="field-row step"><span class="step-number">${index + 1}</span><input data-field="instruction" value="${escapeAttr(item.instruction || "")}" placeholder="Describe this step" required /><button type="button" class="remove-button" data-remove="step" aria-label="Remove step">×</button></div>`).join(""); }
-function collectRecipe() { const ingredients = [...document.querySelectorAll(".ingredient-row")].map((row) => ({ name: row.querySelector('[data-field="name"]').value, quantity: row.querySelector('[data-field="quantity"]').value ? Number(row.querySelector('[data-field="quantity"]').value) : undefined, unit: row.querySelector('[data-field="unit"]').value || undefined })).filter((item) => item.name.trim()); const steps = [...document.querySelectorAll(".field-row.step")].map((row) => ({ instruction: row.querySelector('[data-field="instruction"]').value })).filter((step) => step.instruction.trim()); const body = { name: $("#recipe-name").value, ingredients, steps, tags: $("#recipe-tags").value.split(",").map((tag) => tag.trim()).filter(Boolean) }; for (const [key, id] of [["servings", "recipe-servings"], ["prepMinutes", "recipe-prep"], ["cookMinutes", "recipe-cook"]]) if ($("#" + id).value) body[key] = Number($("#" + id).value); return body; }
+function collectRecipe() { const ingredients = [...document.querySelectorAll(".ingredient-row")].map((row) => ({ name: row.querySelector('[data-field="name"]').value, quantity: row.querySelector('[data-field="quantity"]').value ? Number(row.querySelector('[data-field="quantity"]').value) : undefined, unit: row.querySelector('[data-field="unit"]').value || undefined, notes: row.querySelector('[data-field="notes"]').value || undefined })).filter((item) => item.name.trim()); const steps = [...document.querySelectorAll(".field-row.step")].map((row) => ({ instruction: row.querySelector('[data-field="instruction"]').value })).filter((step) => step.instruction.trim()); const body = { name: $("#recipe-name").value, ingredients, steps, tags: $("#recipe-tags").value.split(",").map((tag) => tag.trim()).filter(Boolean) }; for (const [key, id] of [["servings", "recipe-servings"], ["prepMinutes", "recipe-prep"], ["cookMinutes", "recipe-cook"]]) if ($("#" + id).value) body[key] = Number($("#" + id).value); return body; }
 
 async function saveRecipe(event) { event.preventDefault(); try { const body = collectRecipe(); const result = await api(state.editingId ? `/recipes/${state.editingId}` : "/recipes", { method: state.editingId ? "PUT" : "POST", body: JSON.stringify(body) }); state.selectedId = result.recipe.id; await loadRecipes(); } catch (error) { setMessage("#recipe-message", error.message); } }
 async function deleteRecipe(id) { if (!confirm("Delete this recipe?")) return; try { await api(`/recipes/${id}`, { method: "DELETE" }); state.selectedId = null; await loadRecipes(); } catch (error) { alert(error.message); } }
@@ -70,6 +86,7 @@ async function generateSuggestion() {
   const recipeName = $("#recipe-name").value.trim();
   if (recipeName.length < 2) { setMessage("#recipe-message", "Enter a recipe name before generating a draft."); return; }
   const button = $("#suggest-button");
+  const allergens = $("#recipe-allergens").value.split(",").map((item) => item.trim()).filter(Boolean);
   button.disabled = true;
   button.textContent = "Generating...";
   setMessage("#recipe-message", "");
@@ -79,7 +96,7 @@ async function generateSuggestion() {
       body: JSON.stringify({
         recipeName,
         servings: $("#recipe-servings").value ? Number($("#recipe-servings").value) : undefined,
-        allergens: $("#recipe-allergens").value.split(",").map((item) => item.trim()).filter(Boolean),
+        allergens: allergens.length ? allergens : state.allergens,
         availableIngredients: $("#recipe-available").value.split(",").map((item) => item.trim()).filter(Boolean),
       }),
     });
@@ -100,8 +117,8 @@ function escapeAttr(value) { return escapeHtml(value); }
 
 document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => { state.authMode = button.dataset.mode; document.querySelectorAll("[data-mode]").forEach((item) => item.classList.toggle("active", item === button)); $("#auth-submit").textContent = state.authMode === "login" ? "Log in" : "Create account"; $("#auth-password").setAttribute("autocomplete", state.authMode === "login" ? "current-password" : "new-password"); setMessage("#auth-message"); }));
 $("#auth-form").addEventListener("submit", async (event) => { event.preventDefault(); setMessage("#auth-message", ""); try { const response = await api(`/auth/${state.authMode === "login" ? "login" : "register"}`, { method: "POST", body: JSON.stringify({ email: $("#auth-email").value, password: $("#auth-password").value }) }); state.token = response.token; state.email = response.user.email; localStorage.setItem("cooks-nook-token", state.token); localStorage.setItem("cooks-nook-email", state.email); showApp(); } catch (error) { setMessage("#auth-message", error.message); } });
-$("#logout-button").addEventListener("click", () => logout()); $("#new-recipe-button").addEventListener("click", openNewEditor); $("#empty-new-button").addEventListener("click", openNewEditor); $("#cancel-button").addEventListener("click", () => state.selectedId ? selectRecipe(state.selectedId) : showEmpty()); $("#suggest-button").addEventListener("click", generateSuggestion); $("#recipe-form").addEventListener("submit", saveRecipe); ["#recipe-search", "#tag-filter", "#ingredient-filter"].forEach((selector) => $(selector).addEventListener("input", loadRecipes));
-$("#add-ingredient").addEventListener("click", () => { const rows = [...document.querySelectorAll(".ingredient-row")].map((row) => ({ name: row.querySelector('[data-field="name"]').value, quantity: row.querySelector('[data-field="quantity"]').value, unit: row.querySelector('[data-field="unit"]').value })); rows.push({}); renderIngredientFields(rows); });
+$("#logout-button").addEventListener("click", () => logout()); $("#save-allergens").addEventListener("click", saveAllergens); $("#new-recipe-button").addEventListener("click", openNewEditor); $("#empty-new-button").addEventListener("click", openNewEditor); $("#cancel-button").addEventListener("click", () => state.selectedId ? selectRecipe(state.selectedId) : showEmpty()); $("#suggest-button").addEventListener("click", generateSuggestion); $("#recipe-form").addEventListener("submit", saveRecipe); ["#recipe-search", "#tag-filter", "#ingredient-filter"].forEach((selector) => $(selector).addEventListener("input", loadRecipes));
+$("#add-ingredient").addEventListener("click", () => { const rows = [...document.querySelectorAll(".ingredient-row")].map((row) => ({ name: row.querySelector('[data-field="name"]').value, quantity: row.querySelector('[data-field="quantity"]').value, unit: row.querySelector('[data-field="unit"]').value, notes: row.querySelector('[data-field="notes"]').value })); rows.push({}); renderIngredientFields(rows); });
 $("#add-step").addEventListener("click", () => { const rows = [...document.querySelectorAll(".field-row.step")].map((row) => ({ instruction: row.querySelector('[data-field="instruction"]').value })); rows.push({}); renderStepFields(rows); });
 document.addEventListener("click", (event) => { const button = event.target.closest("[data-remove]"); if (!button) return; const row = button.closest(".field-row"); row.remove(); document.querySelectorAll(".field-row.step .step-number").forEach((item, index) => { item.textContent = index + 1; }); });
 if (state.token) showApp();

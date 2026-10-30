@@ -72,5 +72,7 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .assistant-form input { flex:1; min-width:0; }
 .assistant-answer { margin-top:16px; padding:14px; border-radius:12px; background:#fff; color:var(--ink); line-height:1.55; }
 .assistant-answer ul { margin:8px 0 14px; padding-left:20px; }
+.compact-field { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.compact-field input { width:130px; padding:7px 9px; }
 @media (max-width:800px) { .workspace { grid-template-columns:1fr; } .sidebar { border-right:0; border-bottom:1px solid var(--line); } .recipe-list { grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); } .editor-grid,.detail-columns { grid-template-columns:1fr; } .editor-heading { align-items:start; flex-direction:column; } .title-input { min-width:0; width:100%; } }
 @media (max-width:520px) { .topbar { align-items:start; flex-direction:column; } .topbar-actions { width:100%; justify-content:space-between; } .metadata-grid { grid-template-columns:1fr; } .field-row { grid-template-columns:minmax(0,1fr) 70px 80px 30px; } .content { padding:24px 18px; } }

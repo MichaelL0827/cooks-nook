@@ -1,8 +1,12 @@
 import { Router } from "express";
+import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
+import { ensureSubstitutionCatalog, ingredientNameMatches } from "../lib/substitutions.js";
 
 const router = Router();
 router.use(requireAuth);
+const requestWindows = new Map();
+const MAX_REQUESTS_PER_MINUTE = 10;
 
 const ingredientNamePattern = /^[\p{L}]+(?:[ '-][\p{L}]+)*$/u;
 
@@ -59,6 +63,8 @@ function validateRequest(body) {
   const errors = [];
   if (typeof body.recipeName !== "string" || body.recipeName.trim().length < 2) {
     errors.push("recipeName must be at least 2 characters.");
+  } else if (body.recipeName.trim().length > 120) {
+    errors.push("recipeName must be 120 characters or fewer.");
   }
   if (body.servings !== undefined && body.servings !== null) {
     if (!Number.isInteger(body.servings) || body.servings < 1) {
@@ -72,39 +78,33 @@ function validateRequest(body) {
     if (Array.isArray(body[field]) && body[field].some((item) => typeof item !== "string")) {
       errors.push(`${field} must contain only strings.`);
     }
+    if (Array.isArray(body[field]) && (body[field].length > 20 || body[field].some((item) => item.trim().length > 80))) {
+      errors.push(`${field} must contain at most 20 items, each 80 characters or fewer.`);
+    }
   }
   return errors;
 }
 
-function makeAllergenSubstitutions(allergens, ingredients) {
-  const requested = allergens.map((item) => item.toLowerCase());
-  const names = ingredients.map((item) => ({ original: item, lower: item.toLowerCase() }));
-  const substitutions = [];
-  const add = (match, substitute, reason, caution) => {
-    const ingredient = names.find((item) => item.lower.includes(match));
-    if (ingredient) substitutions.push({ ingredient: ingredient.original, substitute, reason, caution });
-  };
-
-  if (requested.some((item) => /dairy|milk|lactose/.test(item))) {
-    add("milk", "unsweetened oat or soy milk", "Similar liquid texture for batters and sauces.", "Choose a product labeled for the intended allergen restriction and check its flavor.");
-    add("butter", "plant-based butter or neutral cooking oil", "Provides fat for cooking and moisture.", "Plant-based products vary; verify the label if dairy avoidance is medically required.");
-    add("cheese", "nutritional yeast or a dairy-free cheese", "Adds savory flavor or a similar meltable texture.", "Nut-based alternatives may introduce a separate allergen.");
-  }
-  if (requested.some((item) => /peanut|nut|tree nut/.test(item))) {
-    add("peanut", "sunflower seed butter", "Provides a similar creamy, savory role.", "Check the label for shared-equipment warnings and other seed allergies.");
-    add("almond", "oat milk or sunflower seed butter", "Avoids tree nuts while keeping a similar texture or liquid role.", "Check the label for cross-contact warnings.");
-  }
-  if (requested.some((item) => /egg/.test(item))) {
-    add("egg", "commercial egg replacer or 1 tablespoon ground flax mixed with 3 tablespoons water", "Can provide binding in many baked recipes.", "Egg replacements are recipe-dependent and may not work for custards or meringues.");
-  }
-  if (requested.some((item) => /gluten|wheat/.test(item))) {
-    add("flour", "a certified gluten-free all-purpose flour blend", "Provides a similar dry base for many recipes.", "Use a blend designed for the recipe; some require added binder such as xanthan gum.");
-    add("bread", "certified gluten-free bread", "Provides a similar structure for toast or sandwiches.", "Certification matters when cross-contact must be avoided.");
-  }
-  return substitutions;
+async function getDatabaseSubstitutions(allergens, ingredients) {
+  await ensureSubstitutionCatalog(prisma);
+  const allergenRows = await prisma.allergen.findMany({ where: { name: { in: allergens } } });
+  const allergenIds = allergenRows.map((item) => item.id);
+  const rows = await prisma.ingredientSubstitute.findMany({ where: { allergenId: { in: allergenIds } }, include: { ingredient: true, substitute: true, allergen: true } });
+  return rows.filter((row) => ingredients.some((item) => ingredientNameMatches(item.name, row.ingredient.name))).map((row) => ({ ingredient: row.ingredient.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings." }));
 }
 
-function makeFallbackSuggestion({ recipeName, servings, allergens = [], availableIngredients = [] }) {
+function sanitizeSuggestion(suggestion) {
+  const validIngredient = (item) => item && typeof item.name === "string" && ingredientNamePattern.test(item.name.trim());
+  const assumptions = Array.isArray(suggestion.assumptions) ? suggestion.assumptions.filter((item) => typeof item === "string") : [];
+  const ingredients = Array.isArray(suggestion.ingredients) ? suggestion.ingredients.filter(validIngredient).map((item) => ({ ...item, name: item.name.trim(), notes: item.notes == null ? null : String(item.notes) })) : [];
+  const tags = Array.isArray(suggestion.tags) ? suggestion.tags.filter((item) => typeof item === "string" && /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u.test(item.trim())).map((item) => item.trim()) : [];
+  const substitutions = Array.isArray(suggestion.substitutions) ? suggestion.substitutions.filter((item) => item && typeof item.ingredient === "string" && typeof item.substitute === "string").map((item) => ({ ingredient: item.ingredient.trim(), substitute: item.substitute.trim(), reason: String(item.reason || "Common substitute."), caution: String(item.caution || "Check the product label." ) })) : [];
+  const dropped = Array.isArray(suggestion.ingredients) ? suggestion.ingredients.length - ingredients.length : 0;
+  if (dropped > 0) assumptions.push(`${dropped} provider ingredient suggestion${dropped === 1 ? " was" : "s were"} removed because its name contained unsupported characters.`);
+  return { ...suggestion, assumptions, ingredients, tags, substitutions };
+}
+
+function makeFallbackSuggestion({ recipeName, servings, allergens = [], availableIngredients = [], substitutions = [] }) {
   const name = recipeName.trim();
   const lowerName = name.toLowerCase();
   const scale = servings ? servings / 4 : 1;
@@ -162,7 +162,6 @@ function makeFallbackSuggestion({ recipeName, servings, allergens = [], availabl
     ? [`The user already has: ${availableIngredients.join(", ")}.`]
     : [];
 
-  const substitutions = makeAllergenSubstitutions(allergens, ingredients.map((item) => item.name));
   return {
     recipeName: name,
     assumptions: ["This is a general starting point, not a finalized recipe.", ...allergenNotes, ...availableNotes],
@@ -216,14 +215,26 @@ async function requestLlmSuggestion(input) {
 }
 
 router.post("/", async (req, res) => {
+  const now = Date.now();
+  const windowStart = requestWindows.get(req.userId) ?? { startedAt: now, count: 0 };
+  if (now - windowStart.startedAt >= 60_000) {
+    windowStart.startedAt = now;
+    windowStart.count = 0;
+  }
+  if (windowStart.count >= MAX_REQUESTS_PER_MINUTE) return res.status(429).json({ error: "Too many suggestion requests. Please try again in a minute." });
+  windowStart.count += 1;
+  requestWindows.set(req.userId, windowStart);
+
   const body = req.body ?? {};
   const errors = validateRequest(body);
   if (errors.length > 0) return res.status(400).json({ error: errors.join(" ") });
 
+  const storedAllergens = await prisma.userAllergen.findMany({ where: { userId: req.userId }, include: { allergen: true } });
+  const allergens = body.allergens?.length ? body.allergens.map((item) => item.trim().toLowerCase()) : storedAllergens.map((item) => item.allergen.name);
   const input = {
     recipeName: body.recipeName.trim(),
     servings: body.servings ?? null,
-    allergens: body.allergens ?? [],
+    allergens,
     availableIngredients: body.availableIngredients ?? [],
   };
 
@@ -232,7 +243,9 @@ router.post("/", async (req, res) => {
     const placeholderKeys = new Set(["your-api-key-here", "replace-with-your-api-key"]);
     const hasConfiguredKey = Boolean(configuredKey) && !placeholderKeys.has(configuredKey);
     const useFallback = process.env.LLM_OFFLINE_MODE === "true" || !hasConfiguredKey;
-    const suggestion = useFallback ? makeFallbackSuggestion(input) : await requestLlmSuggestion(input);
+    const suggestion = useFallback ? makeFallbackSuggestion(input) : sanitizeSuggestion(await requestLlmSuggestion(input));
+    const dbSubstitutions = await getDatabaseSubstitutions(input.allergens, suggestion.ingredients);
+    suggestion.substitutions = [...new Map([...dbSubstitutions, ...(suggestion.substitutions || [])].map((item) => [`${item.ingredient}:${item.substitute}`, item])).values()];
     return res.json({ suggestion, source: useFallback ? "offline-fallback" : "llm" });
   } catch (error) {
     console.error("Recipe suggestion failed:", error.message);

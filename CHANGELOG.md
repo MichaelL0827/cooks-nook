@@ -2,7 +2,7 @@
 
 ## 2026-10-30
 
-### Week 6 Cooking Assistant
+### Week 7 Cooking Assistant
 
 - Added the protected `POST /recipes/assistant` endpoint.
 - Grounded assistant responses in the authenticated user's saved recipe.
@@ -18,3 +18,12 @@
 - Displayed substitution recommendations in the generated recipe draft message.
 - Verified that generated drafts can be edited and saved through the existing recipe CRUD system.
 - Expanded the automated test suite to 27 passing tests.
+
+### Review Fixes
+
+- Relabeled the cooking assistant work as Week 7 so the changelog agrees with the Week 6 status report.
+- Connected persisted allergens and ingredient substitutions to the existing Prisma tables.
+- Added saved-recipe substitution lookup and account-level allergen settings.
+- Replaced broad substring matching with normalized exact ingredient matching.
+- Added input limits, per-user suggestion rate limiting, provider-name sanitization, and ingredient-note preservation in the editor.
+- Expanded regression coverage to 29 passing tests.
