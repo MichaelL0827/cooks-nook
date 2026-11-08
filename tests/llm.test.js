@@ -40,7 +40,7 @@ before(async () => {
   });
   await new Promise((resolve) => provider.listen(0, "127.0.0.1", resolve));
   providerUrl = `http://127.0.0.1:${provider.address().port}`;
-  await startServer({ LLM_OFFLINE_MODE: "false", LLM_API_KEY: "test-key", LLM_API_URL: providerUrl });
+  await startServer({ LLM_PROVIDER: "openai", LLM_OFFLINE_MODE: "false", LLM_API_KEY: "test-key", LLM_API_URL: providerUrl });
   user = await registerTestUser();
   userIds.push(user.userId);
 });

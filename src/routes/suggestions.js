@@ -5,6 +5,7 @@ import { catalog, ingredientNameMatches, normalizeAllergenNames } from "../lib/s
 import { supportedAllergens } from "../lib/substitutions.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
+import { fetchMealDbDraft } from "../lib/mealDb.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -201,7 +202,54 @@ function extractResponseText(data) {
   return content.find((item) => item.type === "output_text")?.text ?? "";
 }
 
+function debugLlmResponse(event, payload) {
+  if (process.env.LLM_DEBUG_LOG?.trim().toLowerCase() === "true") console.log(JSON.stringify({ event, ...payload }));
+}
+
+async function requestOllamaSuggestion(input) {
+  const startedAt = Date.now();
+  const response = await fetch(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OLLAMA_MODEL || "llama3.1:8b",
+      stream: false,
+      format: suggestionSchema,
+      messages: [
+        {
+          role: "system",
+          content: "You generate cautious, editable recipe drafts for a cookbook app. Return only valid JSON matching the supplied schema. Use approximate quantities when a recipe name does not determine exact amounts. Do not claim allergen safety; identify assumptions and ask questions when the recipe name is ambiguous. Keep steps concise and include food-safety language when relevant.",
+        },
+        {
+          role: "user",
+          content: `Create a general recipe draft for: ${input.recipeName}. Servings: ${input.servings ?? "unspecified"}. Declared allergens or dietary restrictions: ${(input.allergens ?? []).join(", ") || "none provided"}. Ingredients already available: ${(input.availableIngredients ?? []).join(", ") || "none provided"}.`,
+        },
+      ],
+      options: { temperature: 0 },
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    debugLlmResponse("ollama_suggestion_error", { status: response.status, latencyMs: Date.now() - startedAt, detail: detail.slice(0, 300) });
+    throw new Error(`Ollama request failed (${response.status}): ${detail.slice(0, 300)}`);
+  }
+
+  const data = await response.json();
+  const rawText = data.message?.content ?? "";
+  debugLlmResponse("ollama_suggestion_raw_response", {
+    latencyMs: Date.now() - startedAt,
+    usage: { input_tokens: data.prompt_eval_count ?? null, output_tokens: data.eval_count ?? null },
+    response: data,
+  });
+  if (!rawText) throw new Error("Ollama returned no suggestion.");
+  return JSON.parse(rawText);
+}
+
 async function requestLlmSuggestion(input) {
+  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "openai";
+  if (provider === "ollama") return requestOllamaSuggestion(input);
+  const startedAt = Date.now();
   const response = await fetch(process.env.LLM_API_URL || "https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -227,10 +275,12 @@ async function requestLlmSuggestion(input) {
 
   if (!response.ok) {
     const detail = await response.text();
+    debugLlmResponse("llm_suggestion_error", { status: response.status, latencyMs: Date.now() - startedAt, detail: detail.slice(0, 300) });
     throw new Error(`LLM provider request failed (${response.status}): ${detail.slice(0, 300)}`);
   }
 
   const data = await response.json();
+  debugLlmResponse("llm_suggestion_raw_response", { latencyMs: Date.now() - startedAt, usage: data.usage ?? null, response: data });
   const text = extractResponseText(data);
   if (!text) throw new Error("LLM provider returned no suggestion.");
   return JSON.parse(text);
@@ -253,16 +303,30 @@ router.post("/", asyncHandler(async (req, res) => {
   };
 
   try {
+    const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "openai";
+    const isOllama = provider === "ollama";
     const configuredKey = process.env.LLM_API_KEY?.trim();
     const placeholderKeys = new Set(["your-api-key-here", "replace-with-your-api-key"]);
-    const hasConfiguredKey = Boolean(configuredKey) && !placeholderKeys.has(configuredKey);
+    const hasConfiguredKey = isOllama || (Boolean(configuredKey) && !placeholderKeys.has(configuredKey));
     const useFallback = process.env.LLM_OFFLINE_MODE === "true" || !hasConfiguredKey;
-    const suggestion = useFallback ? makeFallbackSuggestion(input) : sanitizeSuggestion(await requestLlmSuggestion(input));
+    let source = useFallback ? "offline-fallback" : (isOllama ? "ollama" : "llm");
+    let suggestion;
+    const mealDbEnabled = ["true", "1", "yes"].includes(process.env.MEALDB_ENABLED?.trim().toLowerCase());
+    if (mealDbEnabled) {
+      try {
+        suggestion = await fetchMealDbDraft(input.recipeName);
+        if (suggestion) source = "themealdb";
+      } catch (error) {
+        console.warn("TheMealDB request failed; continuing with the configured draft provider:", error.message);
+      }
+    }
+    if (!suggestion) suggestion = useFallback ? makeFallbackSuggestion(input) : sanitizeSuggestion(await requestLlmSuggestion(input));
+    suggestion = sanitizeSuggestion(suggestion);
     const dbSubstitutions = await getDatabaseSubstitutions(input.allergens, suggestion.ingredients);
     suggestion.substitutions = [...new Map([...dbSubstitutions, ...(suggestion.substitutions || [])].map((item) => [`${item.ingredient}:${item.substitute}`, item])).values()];
     const noCatalogData = input.allergens.filter((allergen) => !catalog.some((item) => item.allergen === allergen));
     if (noCatalogData.length > 0) suggestion.assumptions.push(`No substitution data is available for ${noCatalogData.join(", ")}; check recipe ingredients manually.`);
-    return res.json({ suggestion, source: useFallback ? "offline-fallback" : "llm" });
+    return res.json({ suggestion, source });
   } catch (error) {
     console.error("Recipe suggestion failed:", error.message);
     return res.status(502).json({ error: "Recipe suggestions are temporarily unavailable." });

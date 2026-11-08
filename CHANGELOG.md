@@ -40,3 +40,15 @@
 - Wrapped asynchronous route handlers with centralized rejection forwarding.
 - Added fake-provider tests for both live LLM paths without requiring an API key.
 - Expanded regression coverage to 36 passing tests.
+
+## 2026-11-07 - Recipe editor and local providers
+
+- Reworked recipe step details into auto-expanding text areas so longer instructions remain readable while editing.
+- Corrected the ingredient-row grid so quantity, unit, notes, and remove controls remain usable without wrapping incorrectly.
+- Adjusted the editor proportions to give the Ingredients panel less space and the Steps panel more reading room, with responsive behavior on smaller screens.
+- Added optional TheMealDB recipe lookup by name, including exact-match selection, measurement parsing, ten-minute caching, editable draft conversion, and fallback behavior when the provider is unavailable.
+- Added local Ollama support for recipe suggestions and the cooking assistant through the `/api/chat` endpoint with structured JSON schemas.
+- Added provider configuration for `LLM_PROVIDER`, `OLLAMA_API_URL`, and `OLLAMA_MODEL`, while keeping the existing OpenAI-compatible provider path available.
+- Added opt-in LLM diagnostics for raw suggestion responses, latency, usage data, and provider errors; diagnostics remain disabled by default.
+- Added TheMealDB and Ollama fake-provider tests and kept automated tests deterministic by disabling external recipe lookup in the test server.
+- Expanded regression coverage to 40 passing tests.

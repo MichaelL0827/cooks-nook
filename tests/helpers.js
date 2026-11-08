@@ -24,7 +24,7 @@ export async function startServer(overrides = {}) {
   baseUrl = `http://localhost:${port}`;
   serverProcess = spawn(process.execPath, ["src/index.js"], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: port, LLM_OFFLINE_MODE: "true", ...overrides },
+    env: { ...process.env, PORT: port, LLM_OFFLINE_MODE: "true", MEALDB_ENABLED: "false", ...overrides },
     stdio: ["ignore", "pipe", "pipe"],
   });
 

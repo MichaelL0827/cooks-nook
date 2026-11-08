@@ -1,7 +1,7 @@
 :root { color-scheme: light; --ink:#26342e; --muted:#718078; --green:#2e6b51; --cream:#f7f5ef; --paper:#fffdf8; --line:#e4e7df; --accent:#e6f0e7; --shadow:0 16px 50px rgba(37,56,46,.08); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 * { box-sizing:border-box; }
 body { margin:0; min-width:320px; background:var(--cream); color:var(--ink); }
-button, input { font:inherit; }
+button, input, textarea { font:inherit; }
 button { cursor:pointer; }
 .hidden { display:none !important; }
 .app-shell { min-height:100vh; }
@@ -48,13 +48,16 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .title-input { min-width:min(60vw,620px); padding:0; border:0; border-radius:0; background:transparent; font-family:Georgia, serif; font-size:clamp(32px,5vw,54px); font-weight:700; letter-spacing:-.05em; }
 .title-input:focus { box-shadow:none; }
 .metadata-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; max-width:650px; }
-.editor-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+.editor-grid { display:grid; grid-template-columns:minmax(280px,.82fr) minmax(360px,1.18fr); gap:18px; margin:18px 0; }
 .editor-section { padding:20px; }
 .section-heading { justify-content:space-between; margin-bottom:15px; }
 .text-button { border:0; background:transparent; color:var(--green); font-weight:800; }
 .field-row { display:grid; grid-template-columns:minmax(0,1fr) 92px 100px 34px; gap:7px; margin-bottom:9px; }
-.field-row.step { grid-template-columns:30px minmax(0,1fr) 34px; align-items:center; }
+.field-row.ingredient-row { grid-template-columns:minmax(0,1.45fr) 64px 82px minmax(70px,.9fr) 34px; }
+.field-row.step { grid-template-columns:30px minmax(0,1fr) 34px; align-items:start; }
 .field-row input { min-width:0; padding:9px 10px; font-size:13px; }
+.field-row.step textarea { width:100%; min-height:74px; padding:10px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); line-height:1.45; outline:none; resize:none; overflow:hidden; }
+.field-row.step textarea:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12); }
 .step-number { color:var(--green); font-weight:900; text-align:center; }
 .remove-button { border:0; border-radius:8px; background:#f8e9e4; color:#a75143; font-size:18px; }
 .recipe-detail { max-width:820px; }
@@ -76,4 +79,4 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .compact-field { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
 .compact-field input { width:130px; padding:7px 9px; }
 @media (max-width:800px) { .workspace { grid-template-columns:1fr; } .sidebar { border-right:0; border-bottom:1px solid var(--line); } .recipe-list { grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); } .editor-grid,.detail-columns { grid-template-columns:1fr; } .editor-heading { align-items:start; flex-direction:column; } .title-input { min-width:0; width:100%; } }
-@media (max-width:520px) { .topbar { align-items:start; flex-direction:column; } .topbar-actions { width:100%; justify-content:space-between; } .metadata-grid { grid-template-columns:1fr; } .field-row { grid-template-columns:minmax(0,1fr) 70px 80px 30px; } .content { padding:24px 18px; } }
+@media (max-width:520px) { .topbar { align-items:start; flex-direction:column; } .topbar-actions { width:100%; justify-content:space-between; } .metadata-grid { grid-template-columns:1fr; } .field-row { grid-template-columns:minmax(0,1fr) 70px 80px 30px; } .field-row.ingredient-row { grid-template-columns:minmax(0,1fr) 62px 78px 30px; } .field-row.ingredient-row [data-field="notes"] { grid-column:1 / -1; } .content { padding:24px 18px; } }

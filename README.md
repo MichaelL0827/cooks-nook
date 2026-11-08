@@ -108,6 +108,20 @@ delete another user's recipes.
 - When `LLM_API_KEY` is configured, the route uses structured JSON output from
   the configured LLM provider. When no key is configured, it uses an offline
   fallback for local development and testing.
+- Set `LLM_DEBUG_LOG=true` temporarily when validating a live provider call to
+  print the raw provider response, latency, and reported usage before the
+  response is sanitized. Keep this disabled during normal development because
+  raw model output may contain recipe-related input and output.
+- To use Ollama locally, set `LLM_PROVIDER=ollama`, start Ollama, and set
+  `OLLAMA_MODEL` to a model installed on the machine. The app uses Ollama's
+  local `/api/chat` endpoint with the recipe suggestion JSON schema and does
+  not require a cloud API key.
+- When `MEALDB_ENABLED=true`, the route first searches TheMealDB by recipe name
+  and converts the first matching result into the same editable draft format.
+  Results are cached in memory for ten minutes. The app falls back to the
+  configured LLM or offline generator when TheMealDB has no match or is
+  unavailable. TheMealDB content should be credited in the application before
+  public release; the free development endpoint is intended for testing.
 - When allergens are provided, the response includes editable substitution
   recommendations with a reason and a caution instead of claiming that a
   substitute is automatically safe.
