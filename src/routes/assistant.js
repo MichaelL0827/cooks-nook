@@ -55,7 +55,7 @@ async function requestLlmAnswer(recipe, question, allergens) {
   const context = { name: recipe.name, servings: recipe.servings, ingredients: recipe.ingredients.map((item) => ({ name: item.ingredient.name, quantity: item.quantity, unit: item.unit, notes: item.notes })), steps: recipe.steps.map((step) => step.instruction) };
   const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "openai";
   if (provider === "ollama") {
-    const response = await fetch(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
+    const response = await fetchWithRetry(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -68,26 +68,29 @@ async function requestLlmAnswer(recipe, question, allergens) {
         ],
         options: { temperature: 0 },
       }),
-    });
+    }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
     if (!response.ok) throw new Error(`Ollama request failed (${response.status})`);
     const data = await response.json();
     const text = data.message?.content ?? "";
+    debugLlmResponse("ollama_assistant_raw_response", { promptVersion: AI_PROMPT_VERSION, response: data });
     if (!text) throw new Error("Ollama returned no answer.");
     return JSON.parse(text);
   }
-  const response = await fetch(process.env.LLM_API_URL || "https://api.openai.com/v1/responses", {
+  const response = await fetchWithRetry(process.env.LLM_API_URL || "https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.LLM_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.LLM_MODEL || "gpt-4.1-mini",
       store: false,
-      instructions: "You are a cautious cooking assistant. Answer only from the supplied recipe context. Explain vague cooking language for beginners, identify uncertainty, suggest substitutions with caveats, and never claim an allergen-free result.",
+      instructions: COOKING_ASSISTANT_PROMPT,
       input: `Recipe context:\n${JSON.stringify(context)}\nDeclared account allergens: ${allergens.join(", ") || "none"}\n\nUser question: ${question}`,
       text: { format: { type: "json_schema", name: "cooking_assistant_answer", strict: true, schema: assistantSchema } },
     }),
-  });
+  }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
   if (!response.ok) throw new Error(`LLM provider request failed (${response.status})`);
-  const text = extractResponseText(await response.json());
+  const data = await response.json();
+  debugLlmResponse("llm_assistant_raw_response", { promptVersion: AI_PROMPT_VERSION, response: data });
+  const text = extractResponseText(data);
   if (!text) throw new Error("LLM provider returned no answer.");
   return JSON.parse(text);
 }
@@ -109,8 +112,19 @@ router.post("/", asyncHandler(async (req, res) => {
     const configuredKey = process.env.LLM_API_KEY?.trim();
     const placeholderKeys = new Set(["your-api-key-here", "replace-with-your-api-key"]);
     const useFallback = process.env.LLM_OFFLINE_MODE === "true" || (!isOllama && (!configuredKey || placeholderKeys.has(configuredKey)));
-    const answer = useFallback ? makeFallbackAnswer(recipe, question, allergens) : await requestLlmAnswer(recipe, question, allergens);
-    return res.json({ answer, source: useFallback ? "offline-fallback" : (isOllama ? "ollama" : "llm") });
+    let source = useFallback ? "offline-fallback" : (isOllama ? "ollama" : "llm");
+    let fallbackReason = useFallback ? "offline_mode" : null;
+    let rawAnswer;
+    if (useFallback) rawAnswer = makeFallbackAnswer(recipe, question, allergens);
+    else {
+      try { rawAnswer = await requestLlmAnswer(recipe, question, allergens); }
+      catch (error) { console.warn("Cooking assistant provider failed; using offline fallback:", error.message); rawAnswer = makeFallbackAnswer(recipe, question, allergens); source = "offline-fallback"; fallbackReason = "provider_error"; }
+    }
+    const answer = normalizeAssistantAnswer(rawAnswer, { hasHighRiskIngredient: recipe.ingredients.some((item) => isHighRiskIngredient(item.ingredient.name)) });
+    const responseBody = { answer, source };
+    if (source === "offline-fallback") responseBody.fallbackReason = fallbackReason;
+    if (source === "ollama" || source === "llm") responseBody.promptVersion = AI_PROMPT_VERSION;
+    return res.json(responseBody);
   } catch (error) {
     console.error("Cooking assistant failed:", error.message);
     return res.status(502).json({ error: "The cooking assistant is temporarily unavailable." });

@@ -37,6 +37,7 @@ test("ingredient maker returns an editable offline draft", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(response.body.source, "offline-fallback");
+  assert.equal(response.body.fallbackReason, "offline_mode");
   assert.equal(response.body.suggestion.recipeName, "Chicken Tacos");
   assert.ok(response.body.suggestion.ingredients.length > 0);
   assert.ok(response.body.suggestion.steps.length > 0);

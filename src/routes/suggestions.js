@@ -217,7 +217,7 @@ async function requestOllamaSuggestion(input) {
       messages: [
         {
           role: "system",
-          content: "You generate cautious, editable recipe drafts for a cookbook app. Return only valid JSON matching the supplied schema. Use approximate quantities when a recipe name does not determine exact amounts. Do not claim allergen safety; identify assumptions and ask questions when the recipe name is ambiguous. Keep steps concise and include food-safety language when relevant.",
+          content: RECIPE_DRAFT_PROMPT,
         },
         {
           role: "user",
@@ -226,7 +226,7 @@ async function requestOllamaSuggestion(input) {
       ],
       options: { temperature: 0 },
     }),
-  });
+  }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
 
   if (!response.ok) {
     const detail = await response.text();
@@ -260,7 +260,7 @@ async function requestLlmSuggestion(input) {
       model: process.env.LLM_MODEL || "gpt-4.1-mini",
       store: false,
       instructions:
-        "You generate cautious, editable recipe drafts for a cookbook app. Return only the requested JSON structure. Use approximate quantities when a recipe name does not determine exact amounts. Do not claim allergen safety; identify assumptions and ask questions when the recipe name is ambiguous. Keep steps concise, include food-safety language when relevant, and provide common substitutions for each relevant declared allergen.",
+        RECIPE_DRAFT_PROMPT,
       input: `Create a general recipe draft for: ${input.recipeName}. Servings: ${input.servings ?? "unspecified"}. Declared allergens or dietary restrictions: ${(input.allergens ?? []).join(", ") || "none provided"}. Ingredients already available: ${(input.availableIngredients ?? []).join(", ") || "none provided"}.`,
       text: {
         format: {
@@ -271,7 +271,7 @@ async function requestLlmSuggestion(input) {
         },
       },
     }),
-  });
+  }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
 
   if (!response.ok) {
     const detail = await response.text();
@@ -280,7 +280,7 @@ async function requestLlmSuggestion(input) {
   }
 
   const data = await response.json();
-  debugLlmResponse("llm_suggestion_raw_response", { latencyMs: Date.now() - startedAt, usage: data.usage ?? null, response: data });
+  debugLlmResponse("llm_suggestion_raw_response", { promptVersion: AI_PROMPT_VERSION, latencyMs: Date.now() - startedAt, usage: data.usage ?? null, response: data });
   const text = extractResponseText(data);
   if (!text) throw new Error("LLM provider returned no suggestion.");
   return JSON.parse(text);
@@ -310,6 +310,7 @@ router.post("/", asyncHandler(async (req, res) => {
     const hasConfiguredKey = isOllama || (Boolean(configuredKey) && !placeholderKeys.has(configuredKey));
     const useFallback = process.env.LLM_OFFLINE_MODE === "true" || !hasConfiguredKey;
     let source = useFallback ? "offline-fallback" : (isOllama ? "ollama" : "llm");
+    let fallbackReason = useFallback ? "offline_mode" : null;
     let suggestion;
     const mealDbEnabled = ["true", "1", "yes"].includes(process.env.MEALDB_ENABLED?.trim().toLowerCase());
     if (mealDbEnabled) {
@@ -320,13 +321,22 @@ router.post("/", asyncHandler(async (req, res) => {
         console.warn("TheMealDB request failed; continuing with the configured draft provider:", error.message);
       }
     }
-    if (!suggestion) suggestion = useFallback ? makeFallbackSuggestion(input) : sanitizeSuggestion(await requestLlmSuggestion(input));
-    suggestion = sanitizeSuggestion(suggestion);
+    if (!suggestion) {
+      if (useFallback) suggestion = makeFallbackSuggestion(input);
+      else {
+        try { suggestion = await requestLlmSuggestion(input); }
+        catch (error) { console.warn("Recipe suggestion provider failed; using offline fallback:", error.message); suggestion = makeFallbackSuggestion(input); source = "offline-fallback"; fallbackReason = "provider_error"; }
+      }
+    }
+    suggestion = sanitizeSuggestion(normalizeSuggestionShape(suggestion, input.recipeName, { preserveAttribution: source === "themealdb" }));
     const dbSubstitutions = await getDatabaseSubstitutions(input.allergens, suggestion.ingredients);
     suggestion.substitutions = [...new Map([...dbSubstitutions, ...(suggestion.substitutions || [])].map((item) => [`${item.ingredient}:${item.substitute}`, item])).values()];
     const noCatalogData = input.allergens.filter((allergen) => !catalog.some((item) => item.allergen === allergen));
     if (noCatalogData.length > 0) suggestion.assumptions.push(`No substitution data is available for ${noCatalogData.join(", ")}; check recipe ingredients manually.`);
-    return res.json({ suggestion, source });
+    const responseBody = { suggestion, source };
+    if (source === "offline-fallback") responseBody.fallbackReason = fallbackReason;
+    if (source === "ollama" || source === "llm") responseBody.promptVersion = AI_PROMPT_VERSION;
+    return res.json(responseBody);
   } catch (error) {
     console.error("Recipe suggestion failed:", error.message);
     return res.status(502).json({ error: "Recipe suggestions are temporarily unavailable." });
