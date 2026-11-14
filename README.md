@@ -133,6 +133,25 @@ delete another user's recipes.
   ingredients; it is not a medical claim that wheat allergy and celiac disease
   are identical.
 
+### Environment variables
+
+The main provider settings are configured in `.env`:
+
+| Variable | Purpose |
+| --- | --- |
+| `LLM_PROVIDER` | `openai` or `ollama`; determines which LLM adapter is used. |
+| `LLM_API_KEY` | API key for the OpenAI-compatible provider. Keep it out of Git. |
+| `LLM_API_URL` / `LLM_MODEL` | OpenAI-compatible endpoint and model. |
+| `LLM_OFFLINE_MODE` | Forces deterministic offline drafts when set to `true`. |
+| `LLM_TIMEOUT_MS` | Provider request timeout in milliseconds; useful for slow local model startup. |
+| `LLM_DEBUG_LOG` | Logs raw provider output, latency, usage, and prompt version when `true`. |
+| `OLLAMA_API_URL` / `OLLAMA_MODEL` | Local Ollama `/api/chat` endpoint and installed model name. |
+| `MEALDB_ENABLED` / `MEALDB_API_URL` | Enables TheMealDB lookup and selects its API base URL. |
+
+Provider failures return an offline draft with `source: "offline-fallback"` and
+`fallbackReason: "provider_error"`. Deliberate offline operation uses
+`fallbackReason: "offline_mode"`.
+
 ## Cooking Assistant
 
 - `POST /recipes/assistant` — protected route that accepts `{ recipeId, question }` and returns an answer grounded in the user's saved recipe.
@@ -160,3 +179,45 @@ curl http://localhost:3001/recipes -H "Authorization: Bearer <token>"
 The local prototype is covered by automated API, ownership, validation, offline
 fallback, and fake-provider tests. Live LLM behavior requires a configured
 provider key; local development defaults to the offline path.
+
+## AI evaluation script
+
+`scripts/evaluate-suggestions.js` runs 20 recipe-name cases against the
+authenticated `/recipes/suggest` endpoint. It records schema validity, source
+matching, ingredient and step counts, assumptions, questions, allergen
+acknowledgement, ingredient conflicts, substitution coverage, safety language
+for safety-relevant cases, latency, fallback reason, and prompt version.
+
+Start the API with MealDB disabled when measuring an LLM:
+
+```powershell
+$env:MEALDB_ENABLED="false"
+$env:LLM_PROVIDER="ollama"
+$env:LLM_TIMEOUT_MS="120000"
+npm start
+```
+
+Then provide a valid JWT and run the evaluation from a second terminal:
+
+```powershell
+$env:EVAL_TOKEN="<token>"
+$env:EVAL_LABEL="llama3.1-8b"
+$env:EVAL_EXPECT_SOURCE="ollama"
+node scripts/evaluate-suggestions.js
+```
+
+Evaluation-specific variables are:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `EVAL_TOKEN` | none | Required JWT for the protected suggestion route. |
+| `EVAL_BASE_URL` | `http://localhost:3001` | API base URL. |
+| `EVAL_LABEL` | expected source | Model or prompt label stored with the results. |
+| `EVAL_EXPECT_SOURCE` | `ollama` | Expected response source; another source counts as a failed case. |
+| `EVAL_DELAY_MS` | `6500` | Delay between cases to stay below the per-user suggestion rate limit. |
+| `EVAL_OUTPUT` | `evaluation/results.json` | Results file path. |
+
+The script prints a table and a summary containing passed cases, unresolved
+allergen conflicts, provider fallbacks, and average latency. Generated results
+are ignored by Git through `evaluation/` in `.gitignore`; copy the summary into
+the project report when recording an experiment.

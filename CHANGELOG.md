@@ -64,3 +64,4 @@
 - Added the 20-case evaluation script with source validation, rate-limit spacing, allergen conflict and acknowledgement metrics, safety checks, latency reporting, and summary output.
 - Added generated evaluation-result exclusion to `.gitignore`.
 - The evaluation script is ready to run against Ollama with `MEALDB_ENABLED=false` and an explicit `EVAL_LABEL`.
+- Documented the evaluation workflow, provider configuration, timeout setting, fallback reasons, and evaluation-specific environment variables in the README and `.env.example`.
