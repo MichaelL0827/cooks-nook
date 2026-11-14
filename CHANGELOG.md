@@ -52,3 +52,15 @@
 - Added opt-in LLM diagnostics for raw suggestion responses, latency, usage data, and provider errors; diagnostics remain disabled by default.
 - Added TheMealDB and Ollama fake-provider tests and kept automated tests deterministic by disabling external recipe lookup in the test server.
 - Expanded regression coverage to 40 passing tests.
+
+## 2026-11-14 - AI reliability, evaluation, and attribution
+
+- Split the reviewed work into structured commits:
+  - `4b7fb1a` Normalize repository line endings.
+  - `78667ed` Standardize AI helper output.
+  - `afaa2c2` Preserve TheMealDB attribution.
+  - `ddfdde1` Harden provider retries and fallback behavior.
+- Pushed commits `4b7fb1a` through `ddfdde1` to `origin/main`.
+- Added the 20-case evaluation script with source validation, rate-limit spacing, allergen conflict and acknowledgement metrics, safety checks, latency reporting, and summary output.
+- Added generated evaluation-result exclusion to `.gitignore`.
+- The evaluation script is ready to run against Ollama with `MEALDB_ENABLED=false` and an explicit `EVAL_LABEL`.
