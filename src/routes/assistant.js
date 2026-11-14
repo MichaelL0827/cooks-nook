@@ -3,6 +3,9 @@ import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
+import { isHighRiskIngredient, normalizeAssistantAnswer } from "../lib/aiOutput.js";
+import { debugLlmResponse, fetchWithRetry } from "../lib/ai.js";
+import { AI_PROMPT_VERSION, COOKING_ASSISTANT_PROMPT } from "../lib/prompts.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -60,7 +63,7 @@ async function requestLlmAnswer(recipe, question, allergens) {
         stream: false,
         format: assistantSchema,
         messages: [
-          { role: "system", content: "You are a cautious cooking assistant. Answer only from the supplied recipe context. Explain vague cooking language for beginners, identify uncertainty, suggest substitutions with caveats, and never claim an allergen-free result." },
+          { role: "system", content: COOKING_ASSISTANT_PROMPT },
           { role: "user", content: `Recipe context:\n${JSON.stringify(context)}\nDeclared account allergens: ${allergens.join(", ") || "none"}\n\nUser question: ${question}` },
         ],
         options: { temperature: 0 },

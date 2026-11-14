@@ -6,6 +6,9 @@ import { supportedAllergens } from "../lib/substitutions.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
 import { fetchMealDbDraft } from "../lib/mealDb.js";
+import { normalizeSuggestionShape } from "../lib/aiOutput.js";
+import { debugLlmResponse, fetchWithRetry } from "../lib/ai.js";
+import { AI_PROMPT_VERSION, RECIPE_DRAFT_PROMPT } from "../lib/prompts.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -202,13 +205,9 @@ function extractResponseText(data) {
   return content.find((item) => item.type === "output_text")?.text ?? "";
 }
 
-function debugLlmResponse(event, payload) {
-  if (process.env.LLM_DEBUG_LOG?.trim().toLowerCase() === "true") console.log(JSON.stringify({ event, ...payload }));
-}
-
 async function requestOllamaSuggestion(input) {
   const startedAt = Date.now();
-  const response = await fetch(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
+  const response = await fetchWithRetry(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -238,6 +237,7 @@ async function requestOllamaSuggestion(input) {
   const data = await response.json();
   const rawText = data.message?.content ?? "";
   debugLlmResponse("ollama_suggestion_raw_response", {
+    promptVersion: AI_PROMPT_VERSION,
     latencyMs: Date.now() - startedAt,
     usage: { input_tokens: data.prompt_eval_count ?? null, output_tokens: data.eval_count ?? null },
     response: data,
@@ -250,7 +250,7 @@ async function requestLlmSuggestion(input) {
   const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "openai";
   if (provider === "ollama") return requestOllamaSuggestion(input);
   const startedAt = Date.now();
-  const response = await fetch(process.env.LLM_API_URL || "https://api.openai.com/v1/responses", {
+  const response = await fetchWithRetry(process.env.LLM_API_URL || "https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.LLM_API_KEY}`,
