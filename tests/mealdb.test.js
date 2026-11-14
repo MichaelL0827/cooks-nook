@@ -12,6 +12,7 @@ const sampleMeal = {
   strMeasure3: "to taste",
   strInstructions: "Mix the batter.\r\nCook until golden.",
   strTags: "Breakfast, Quick",
+  strSource: "https://example.com/pancakes",
   strMealThumb: "https://example.com/pancakes.jpg",
 };
 
@@ -22,6 +23,8 @@ test("TheMealDB meals become editable recipe drafts", () => {
   assert.deepEqual(draft.ingredients[2], { name: "Salt", quantity: null, unit: null, notes: "to taste" });
   assert.deepEqual(draft.steps.map((step) => step.instruction), ["Mix the batter.", "Cook until golden."]);
   assert.deepEqual(draft.tags, ["Breakfast", "Quick"]);
+  assert.equal(draft.sourceUrl, "https://example.com/pancakes");
+  assert.equal(draft.imageUrl, "https://example.com/pancakes.jpg");
 });
 
 test("TheMealDB search prefers an exact match and caches it", async () => {

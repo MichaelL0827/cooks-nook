@@ -115,7 +115,16 @@ async function generateSuggestion() {
     const assumptions = suggestion.assumptions.length ? ` Assumptions: ${suggestion.assumptions.join(" ")}` : "";
     const substitutions = suggestion.substitutions?.length ? ` Substitutions: ${suggestion.substitutions.map((item) => `${item.ingredient} → ${item.substitute} [${item.source || response.source}]`).join("; ")}.` : (state.allergens.length ? " No known substitutions found." : "");
     const caveat = allergens.length || state.allergens.length || suggestion.substitutions?.length ? " Checked against a limited catalog; absence of a flag is not a safety guarantee." : "";
-    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${substitutions}${assumptions}${caveat}`);
+    const fallbackMessage = response.fallbackReason === "provider_error" ? " The AI provider did not respond, so this is a basic offline draft." : "";
+    setMessage("#recipe-message", `Draft generated (${response.source}). Review it before saving.${fallbackMessage}${substitutions}${assumptions}${caveat}`);
+    if (response.source === "themealdb" && /^https?:\/\//i.test(suggestion.sourceUrl || "")) {
+      const link = document.createElement("a");
+      link.textContent = "View source";
+      link.href = suggestion.sourceUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      $("#recipe-message").append(" Imported from TheMealDB: ", link, ".");
+    }
   } catch (error) { setMessage("#recipe-message", error.message); }
   finally { button.disabled = false; button.textContent = "Generate draft"; }
 }
