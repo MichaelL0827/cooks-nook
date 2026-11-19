@@ -232,6 +232,10 @@ handling, off-topic requests, and prompt-injection resistance. It saves answer
 text, safety notes, follow-up questions, source, prompt version, latency, and
 behavior checks. It uses the same `EVAL_*` variables as the suggestion
 evaluation and writes `evaluation/assistant-results.json` by default.
+It also writes `evaluation/assistant-review.csv` for manual 1–3 accuracy and
+helpfulness scoring. Pressing Ctrl+C can skip cleanup; if that happens, restore
+the account allergens and delete the temporary “Assistant Evaluation” recipe
+manually.
 
 Use `GET /recipes?hideAllergens=true` to hide recipes matching the account's
 saved allergens. This uses a limited catalog; visible recipes are not
