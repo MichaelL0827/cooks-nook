@@ -74,3 +74,14 @@ export function ingredientNameMatches(name, target) {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, " ");
   return aliases.some((alias) => normalized === alias);
 }
+
+export function ingredientMatchesAllergen(name, allergen) {
+  if (catalog.some((entry) => entry.allergen === allergen && ingredientNameMatches(name, entry.base))) return true;
+  const patterns = {
+    fish: /\b(fish|salmon|tuna|cod|tilapia)\b/i,
+    shellfish: /\b(shrimp|prawns?|crab|lobster|clams?|oysters?|scallops?)\b/i,
+    sesame: /\bsesame\b/i,
+    soy: /\b(soy|soya|edamame|tofu|tempeh)\b/i,
+  };
+  return Boolean(patterns[allergen]?.test(name));
+}

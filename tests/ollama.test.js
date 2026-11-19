@@ -59,6 +59,26 @@ test("Ollama provider returns a structured cooking assistant answer", async () =
   assert.match(response.body.answer.answer, /supplied recipe context/);
 });
 
+test("Ollama assistant receives conversation history and step focus in order", async () => {
+  const created = await request("POST", "/recipes", { name: "Conversation Recipe", steps: [{ instruction: "Mix ingredients." }] }, user.token);
+  const response = await request("POST", "/recipes/assistant", {
+    recipeId: created.body.recipe.id,
+    question: "What should I do next?",
+    history: [
+      { role: "user", content: "I am cooking this now." },
+      { role: "assistant", content: "Start with the first step." },
+    ],
+    stepNumber: 1,
+  }, user.token);
+  assert.equal(response.status, 200);
+  assert.equal(observedRequest.messages[1].role, "user");
+  assert.equal(observedRequest.messages[1].content, "I am cooking this now.");
+  assert.equal(observedRequest.messages[2].role, "assistant");
+  assert.equal(observedRequest.messages[2].content, "Start with the first step.");
+  assert.equal(observedRequest.messages[3].content, "What should I do next?");
+  assert.match(observedRequest.messages[0].content, /recipe step 1/i);
+});
+
 test("Ollama suggestion output repairs string ingredients and steps without truncating", async () => {
   const response = await request("POST", "/recipes/suggest", { recipeName: "Malformed Draft" }, user.token);
   assert.equal(response.status, 200);

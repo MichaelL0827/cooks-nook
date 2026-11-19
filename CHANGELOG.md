@@ -65,3 +65,13 @@
 - Added generated evaluation-result exclusion to `.gitignore`.
 - The evaluation script is ready to run against Ollama with `MEALDB_ENABLED=false` and an explicit `EVAL_LABEL`.
 - Documented the evaluation workflow, provider configuration, timeout setting, fallback reasons, and evaluation-specific environment variables in the README and `.env.example`.
+
+## 2026-11-19 - Week 10 assistant experience
+
+- Added stateless multi-turn assistant requests with validated conversation history limited to six messages.
+- Added optional recipe-step focus so users can ask directly about a specific instruction.
+- Added a chat transcript, follow-up question chips, and “Ask about this step” controls to the recipe detail view.
+- Added `scripts/evaluate-assistant.js` for a 15-case assistant baseline covering vague instructions, follow-ups, substitutions, safety, and prompt-injection resistance.
+- Added an allergen-aware recipe-list filter that hides recipes containing ingredients matching the user’s saved restrictions.
+- Added regression tests for assistant history validation, provider message ordering, step focus, and allergen filtering.
+- Expanded automated regression coverage to 59 passing tests.

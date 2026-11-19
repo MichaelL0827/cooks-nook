@@ -82,3 +82,14 @@ test("filters return an empty list when there is no match", async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(response.body.recipes, []);
 });
+
+test("allergen filter hides recipes containing saved restrictions", async () => {
+  await request("PUT", "/me/allergens", { allergens: ["dairy"] }, user.token);
+  const response = await request("POST", "/recipes", { name: "Creamy Pasta", ingredients: [{ name: "milk" }], steps: [{ instruction: "Simmer." }] }, user.token);
+  assert.equal(response.status, 201);
+  const filtered = await request("GET", "/recipes?hideAllergens=true", undefined, user.token);
+  assert.equal(filtered.status, 200);
+  assert.equal(filtered.body.recipes.some((recipe) => recipe.name === "Creamy Pasta"), false);
+  const unfiltered = await request("GET", "/recipes", undefined, user.token);
+  assert.equal(unfiltered.body.recipes.some((recipe) => recipe.name === "Creamy Pasta"), true);
+});

@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
 import asyncHandler from "../middleware/asyncHandler.js";
+import { ingredientMatchesAllergen } from "../lib/substitutions.js";
 
 const router = Router();
 
@@ -107,7 +108,22 @@ router.get("/", asyncHandler(async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const tag = typeof req.query.tag === "string" ? req.query.tag.trim() : "";
   const ingredient = typeof req.query.ingredient === "string" ? req.query.ingredient.trim() : "";
+  const hideAllergens = req.query.hideAllergens === "true";
+  const userAllergens = hideAllergens
+    ? (await prisma.userAllergen.findMany({ where: { userId: req.userId }, include: { allergen: true } })).map((item) => item.allergen.name)
+    : [];
 
+  const listSelection = hideAllergens
+    ? { include: { ingredients: { include: { ingredient: true } }, tags: { include: { tag: true } } } }
+    : { select: {
+      id: true,
+      name: true,
+      servings: true,
+      prepMinutes: true,
+      cookMinutes: true,
+      updatedAt: true,
+      tags: { include: { tag: true } },
+    } };
   const recipes = await prisma.recipe.findMany({
     where: {
       userId: req.userId,
@@ -118,17 +134,13 @@ router.get("/", asyncHandler(async (req, res) => {
         : {}),
     },
     orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      servings: true,
-      prepMinutes: true,
-      cookMinutes: true,
-      updatedAt: true,
-      tags: { include: { tag: true } },
-    },
+    ...listSelection,
   });
-  res.json({ recipes });
+  const filteredRecipes = hideAllergens
+    ? recipes.filter((recipe) => !recipe.ingredients.some((item) => userAllergens.some((allergen) => ingredientMatchesAllergen(item.ingredient.name, allergen))))
+      .map(({ ingredients, ...recipe }) => recipe)
+    : recipes;
+  res.json({ recipes: filteredRecipes });
 }));
 
 // GET /recipes/:id — full detail for one of the current user's recipes.
