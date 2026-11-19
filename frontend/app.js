@@ -63,10 +63,18 @@ async function selectRecipe(id) {
   document.querySelectorAll(".step-question").forEach((button) => button.addEventListener("click", () => { const question = `Can you explain step ${button.dataset.stepNumber}?`; $("#assistant-question").value = question; askAssistant(null, recipe.id, question, Number(button.dataset.stepNumber)); }));
 }
 
-function renderAssistantTranscript() {
+function appendAssistantTranscript(messages) {
   const transcript = $("#assistant-transcript");
-  if (!state.assistantHistory.length) { transcript.classList.add("hidden"); transcript.innerHTML = ""; return; }
-  transcript.innerHTML = state.assistantHistory.map((message) => `<div class="assistant-message ${message.role}"><strong>${message.role === "user" ? "You" : "Assistant"}</strong><p>${escapeHtml(message.content)}</p></div>`).join("");
+  for (const message of messages) {
+    const entry = document.createElement("div");
+    entry.className = `assistant-message ${message.role}`;
+    const label = document.createElement("strong");
+    label.textContent = message.role === "user" ? "You" : "Assistant";
+    const content = document.createElement("p");
+    content.textContent = message.content;
+    entry.append(label, content);
+    transcript.append(entry);
+  }
   transcript.classList.remove("hidden");
 }
 
@@ -81,8 +89,9 @@ async function askAssistant(event, recipeId, requestedQuestion, stepNumber) {
   try {
     const response = await api("/recipes/assistant", { method: "POST", body: JSON.stringify({ recipeId, question, history: state.assistantHistory.slice(-6), ...(stepNumber ? { stepNumber } : {}) }) });
     const answer = response.answer;
-    state.assistantHistory.push({ role: "user", content: question }, { role: "assistant", content: answer.answer });
-    renderAssistantTranscript();
+    const newMessages = [{ role: "user", content: question }, { role: "assistant", content: answer.answer }];
+    state.assistantHistory.push(...newMessages);
+    appendAssistantTranscript(newMessages);
     const safety = answer.safetyNotes.length ? `<strong>Safety notes</strong><ul>${answer.safetyNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul>` : "";
     const followups = answer.followUpQuestions.length ? `<strong>Follow-up ideas</strong>${answer.followUpQuestions.map((item) => `<button type="button" class="followup-chip">${escapeHtml(item)}</button>`).join("")}` : "";
     $("#assistant-followups").innerHTML = `${safety}${followups}<small class="muted">Source: ${escapeHtml(response.source)}</small>`;
@@ -90,7 +99,7 @@ async function askAssistant(event, recipeId, requestedQuestion, stepNumber) {
     $("#assistant-question").value = "";
     setMessage("#assistant-message", "");
   } catch (error) { setMessage("#assistant-message", error.message); }
-  finally { form.querySelectorAll("input, button").forEach((control) => { control.disabled = false; }); document.querySelectorAll(".step-question, .followup-chip").forEach((control) => { control.disabled = false; }); }
+  finally { form.querySelectorAll("input, button").forEach((control) => { control.disabled = false; }); document.querySelectorAll(".step-question, .followup-chip").forEach((control) => { control.disabled = false; }); if (!stepNumber) $("#assistant-question").focus(); }
 }
 
 function showEmpty() { $("#empty-state").classList.remove("hidden"); $("#recipe-form").classList.add("hidden"); $("#recipe-detail").classList.add("hidden"); state.selectedId = null; renderRecipeList(); }

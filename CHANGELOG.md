@@ -86,3 +86,11 @@
 - Added allergen-filter caveat text, assistant live-region accessibility, step-button labels, and request locking to prevent overlapping chat requests.
 - Updated README documentation for assistant evaluation, conversation fields, and allergen filtering.
 - Expanded automated regression coverage to 61 passing tests.
+
+## 2026-11-19 - Evaluation review improvements
+
+- Tightened assistant evaluation behavior checks so responses must demonstrate relevant explanations and use conversation context.
+- Improved allergen acknowledgement scoring to avoid counting ingredient names alone as model acknowledgement.
+- Added cleanup warnings when evaluation allergen restoration or temporary recipe deletion fails.
+- Added `evaluation/assistant-review.csv` output with answer text and blank accuracy/helpfulness columns for manual 1–3 scoring.
+- Improved assistant keyboard focus after requests and changed transcript updates to append new messages for better screen-reader behavior.
