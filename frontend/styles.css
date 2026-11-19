@@ -76,6 +76,7 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .assistant-answer { margin-top:16px; padding:14px; border-radius:12px; background:#fff; color:var(--ink); line-height:1.55; }
 .assistant-answer ul { margin:8px 0 14px; padding-left:20px; }
 .assistant-transcript { display:grid; gap:10px; margin:16px 0; max-height:360px; overflow:auto; }
+.assistant-transcript:empty { margin:0; }
 .assistant-message { padding:10px 12px; border-radius:12px; background:#fff; }
 .assistant-message.user { margin-left:12%; background:#e4f0e5; }
 .assistant-message p { margin:4px 0 0; }

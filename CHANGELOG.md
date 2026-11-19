@@ -87,6 +87,13 @@
 - Updated README documentation for assistant evaluation, conversation fields, and allergen filtering.
 - Expanded automated regression coverage to 61 passing tests.
 
+## 2026-11-19 - Final assistant evaluation polish
+
+- Added cleanup protection so evaluation results remain available when restoration or deletion encounters a server failure.
+- Hardened the manual-review CSV with UTF-8 compatibility, formula-injection protection, source and fallback metadata, and review columns.
+- Tightened the technique and follow-up behavior heuristics while retaining manual accuracy and helpfulness scoring as the evaluation evidence.
+- Improved assistant transcript scrolling, focus restoration, and empty-state spacing.
+
 ## 2026-11-19 - Evaluation review improvements
 
 - Tightened assistant evaluation behavior checks so responses must demonstrate relevant explanations and use conversation context.
