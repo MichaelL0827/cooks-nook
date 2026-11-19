@@ -75,3 +75,14 @@
 - Added an allergen-aware recipe-list filter that hides recipes containing ingredients matching the user’s saved restrictions.
 - Added regression tests for assistant history validation, provider message ordering, step focus, and allergen filtering.
 - Expanded automated regression coverage to 59 passing tests.
+
+## 2026-11-19 - Week 10 regression fixes and evaluation hardening
+
+- Fixed the recipe-detail Delete button so it sends the selected recipe ID.
+- Hardened assistant evaluation cleanup for empty `204` responses and restored saved allergens after evaluation.
+- Added behavior checks for safety, allergen handling, off-topic requests, prompt injection, substitutions, and step explanations; results now preserve answer text and notes for manual review.
+- Centralized assistant conversation-context and step-focus prompt text so prompt-version logging reflects the complete setup.
+- Added offline step-focused fallback responses and expanded OpenAI-compatible provider history tests.
+- Added allergen-filter caveat text, assistant live-region accessibility, step-button labels, and request locking to prevent overlapping chat requests.
+- Updated README documentation for assistant evaluation, conversation fields, and allergen filtering.
+- Expanded automated regression coverage to 61 passing tests.

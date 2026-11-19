@@ -57,9 +57,9 @@ async function selectRecipe(id) {
   const noCatalogWarning = substitutionResult.noCatalogData?.length ? `<p class="muted substitution-warning">No substitution data is available for ${escapeHtml(substitutionResult.noCatalogData.join(", "))}; check those ingredients manually.</p>` : "";
   const substitutionCaveat = `<p class="muted substitution-warning">Checked against a limited catalog; absence of a flag is not a safety guarantee.</p>`;
   const flags = substitutionResult.flags?.length ? `<p class="warning-text">Potential allergen matches: ${substitutionResult.flags.map((item) => `${escapeHtml(item.ingredient)} (${escapeHtml(item.allergen)})`).join(", ")}. Verify labels and cross-contact warnings.</p>` : "";
-  const stepMarkup = recipe.steps.map((step, index) => `<li><span>${escapeHtml(step.instruction)}</span> <button type="button" class="step-question" data-step-number="${index + 1}">Ask about this step</button></li>`).join("");
-  $("#recipe-detail").innerHTML = `<div class="detail-heading"><div><p class="eyebrow">Saved recipe</p><h1>${escapeHtml(recipe.name)}</h1><div class="detail-meta">${recipe.servings ? `${recipe.servings} servings` : ""}${recipe.prepMinutes !== null ? ` · ${recipe.prepMinutes} min prep` : ""}${recipe.cookMinutes !== null ? ` · ${recipe.cookMinutes} min cook` : ""}</div><div>${tags}</div></div><div class="detail-actions"><button class="button ghost" id="edit-recipe">Edit</button><button class="button ghost" id="delete-recipe">Delete</button></div></div><div class="detail-columns"><section><h3>Ingredients</h3><ul class="ingredient-list">${recipe.ingredients.map((item) => `<li>${item.quantity ?? ""} ${escapeHtml(item.unit || "")} ${escapeHtml(item.ingredient.name)}${item.notes ? `, ${escapeHtml(item.notes)}` : ""}</li>`).join("")}</ul>${substitutionLines}${noCatalogWarning}${flags}${substitutionCaveat}</section><section><h3>Steps</h3><ol class="step-list">${stepMarkup}</ol></section></div><section class="assistant"><h3>Cooking assistant</h3><p class="muted">Ask about a step, timing cue, technique, or ingredient substitution.</p><div id="assistant-transcript" class="assistant-transcript hidden"></div><form id="assistant-form" class="assistant-form"><input id="assistant-question" required maxlength="500" placeholder="What does 'until golden' mean?" /><button class="button primary" type="submit">Ask</button></form><p id="assistant-message" class="form-message"></p><div id="assistant-followups" class="assistant-followups"></div></section>`;
-  $("#edit-recipe").addEventListener("click", () => openEditor(recipe)); $("#delete-recipe").addEventListener("click", () => deleteRecipe(recipe)); $("#assistant-form").addEventListener("submit", (event) => askAssistant(event, recipe.id));
+  const stepMarkup = recipe.steps.map((step, index) => `<li><span>${escapeHtml(step.instruction)}</span> <button type="button" class="step-question" aria-label="Ask about step ${index + 1}" data-step-number="${index + 1}">Ask about this step</button></li>`).join("");
+  $("#recipe-detail").innerHTML = `<div class="detail-heading"><div><p class="eyebrow">Saved recipe</p><h1>${escapeHtml(recipe.name)}</h1><div class="detail-meta">${recipe.servings ? `${recipe.servings} servings` : ""}${recipe.prepMinutes !== null ? ` · ${recipe.prepMinutes} min prep` : ""}${recipe.cookMinutes !== null ? ` · ${recipe.cookMinutes} min cook` : ""}</div><div>${tags}</div></div><div class="detail-actions"><button class="button ghost" id="edit-recipe">Edit</button><button class="button ghost" id="delete-recipe">Delete</button></div></div><div class="detail-columns"><section><h3>Ingredients</h3><ul class="ingredient-list">${recipe.ingredients.map((item) => `<li>${item.quantity ?? ""} ${escapeHtml(item.unit || "")} ${escapeHtml(item.ingredient.name)}${item.notes ? `, ${escapeHtml(item.notes)}` : ""}</li>`).join("")}</ul>${substitutionLines}${noCatalogWarning}${flags}${substitutionCaveat}</section><section><h3>Steps</h3><ol class="step-list">${stepMarkup}</ol></section></div><section class="assistant"><h3>Cooking assistant</h3><p class="muted">Ask about a step, timing cue, technique, or ingredient substitution.</p><div id="assistant-transcript" class="assistant-transcript hidden" aria-live="polite"></div><form id="assistant-form" class="assistant-form"><input id="assistant-question" required maxlength="500" placeholder="What does 'until golden' mean?" /><button class="button primary" type="submit">Ask</button></form><p id="assistant-message" class="form-message"></p><div id="assistant-followups" class="assistant-followups"></div></section>`;
+  $("#edit-recipe").addEventListener("click", () => openEditor(recipe)); $("#delete-recipe").addEventListener("click", () => deleteRecipe(recipe.id)); $("#assistant-form").addEventListener("submit", (event) => askAssistant(event, recipe.id));
   document.querySelectorAll(".step-question").forEach((button) => button.addEventListener("click", () => { const question = `Can you explain step ${button.dataset.stepNumber}?`; $("#assistant-question").value = question; askAssistant(null, recipe.id, question, Number(button.dataset.stepNumber)); }));
 }
 
@@ -74,8 +74,9 @@ async function askAssistant(event, recipeId, requestedQuestion, stepNumber) {
   event?.preventDefault();
   const question = (requestedQuestion ?? $("#assistant-question").value).trim();
   if (!question) return;
-  const button = event?.submitter;
-  if (button) button.disabled = true;
+  const form = $("#assistant-form");
+  form.querySelectorAll("input, button").forEach((control) => { control.disabled = true; });
+  document.querySelectorAll(".step-question, .followup-chip").forEach((control) => { control.disabled = true; });
   setMessage("#assistant-message", "Thinking...");
   try {
     const response = await api("/recipes/assistant", { method: "POST", body: JSON.stringify({ recipeId, question, history: state.assistantHistory.slice(-6), ...(stepNumber ? { stepNumber } : {}) }) });
@@ -89,7 +90,7 @@ async function askAssistant(event, recipeId, requestedQuestion, stepNumber) {
     $("#assistant-question").value = "";
     setMessage("#assistant-message", "");
   } catch (error) { setMessage("#assistant-message", error.message); }
-  finally { if (button) button.disabled = false; }
+  finally { form.querySelectorAll("input, button").forEach((control) => { control.disabled = false; }); document.querySelectorAll(".step-question, .followup-chip").forEach((control) => { control.disabled = false; }); }
 }
 
 function showEmpty() { $("#empty-state").classList.remove("hidden"); $("#recipe-form").classList.add("hidden"); $("#recipe-detail").classList.add("hidden"); state.selectedId = null; renderRecipeList(); }

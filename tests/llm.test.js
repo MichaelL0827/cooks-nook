@@ -6,6 +6,7 @@ import { registerTestUser, removeTestUsers, request, startServer, stopServer } f
 let provider;
 let providerUrl;
 let user;
+let observedRequest;
 const userIds = [];
 
 function responseFor(input) {
@@ -34,6 +35,7 @@ before(async () => {
     let body = "";
     for await (const chunk of req) body += chunk;
     const parsed = JSON.parse(body);
+    observedRequest = parsed;
     const input = typeof parsed.input === "string" ? parsed.input : JSON.stringify(parsed.input);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ output_text: JSON.stringify(responseFor(input)) }));
@@ -69,4 +71,19 @@ test("live provider assistant path returns the structured answer", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.source, "llm");
   assert.match(response.body.answer.answer, /supplied recipe/);
+});
+
+test("OpenAI-compatible assistant path preserves history and step focus", async () => {
+  const created = await request("POST", "/recipes", { name: "Provider Conversation Recipe", steps: [{ instruction: "Stir gently." }] }, user.token);
+  const response = await request("POST", "/recipes/assistant", {
+    recipeId: created.body.recipe.id,
+    question: "What next?",
+    history: [{ role: "user", content: "I am ready." }, { role: "assistant", content: "Start stirring." }],
+    stepNumber: 1,
+  }, user.token);
+  assert.equal(response.status, 200);
+  assert.ok(Array.isArray(observedRequest.input));
+  assert.equal(observedRequest.input[0].role, "system");
+  assert.match(observedRequest.input[0].content, /recipe step 1/i);
+  assert.deepEqual(observedRequest.input.slice(1).map((message) => [message.role, message.content]), [["user", "I am ready."], ["assistant", "Start stirring."], ["user", "What next?"]]);
 });

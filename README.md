@@ -221,3 +221,18 @@ The script prints a table and a summary containing passed cases, unresolved
 allergen conflicts, provider fallbacks, and average latency. Generated results
 are ignored by Git through `evaluation/` in `.gitignore`; copy the summary into
 the project report when recording an experiment.
+
+The assistant endpoint accepts optional `history` and `stepNumber` fields in
+addition to `recipeId` and `question`. History is limited to six user or
+assistant messages, and `stepNumber` focuses the answer on a recipe step.
+
+`scripts/evaluate-assistant.js` runs 15 authenticated assistant questions,
+including follow-up history, step focus, safety, substitutions, allergen
+handling, off-topic requests, and prompt-injection resistance. It saves answer
+text, safety notes, follow-up questions, source, prompt version, latency, and
+behavior checks. It uses the same `EVAL_*` variables as the suggestion
+evaluation and writes `evaluation/assistant-results.json` by default.
+
+Use `GET /recipes?hideAllergens=true` to hide recipes matching the account's
+saved allergens. This uses a limited catalog; visible recipes are not
+guaranteed to be allergen-free.

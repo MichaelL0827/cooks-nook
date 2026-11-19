@@ -114,7 +114,16 @@ router.get("/", asyncHandler(async (req, res) => {
     : [];
 
   const listSelection = hideAllergens
-    ? { include: { ingredients: { include: { ingredient: true } }, tags: { include: { tag: true } } } }
+    ? { select: {
+      id: true,
+      name: true,
+      servings: true,
+      prepMinutes: true,
+      cookMinutes: true,
+      updatedAt: true,
+      tags: { include: { tag: true } },
+      ingredients: { include: { ingredient: true } },
+    } }
     : { select: {
       id: true,
       name: true,

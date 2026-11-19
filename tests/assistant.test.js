@@ -26,6 +26,13 @@ test("cooking assistant answers using saved recipe context", async () => {
   assert.match(response.body.answer.answer, /Cook until golden/i);
 });
 
+test("offline cooking assistant focuses on the requested step", async () => {
+  const created = await request("POST", "/recipes", { name: "Focused Recipe", steps: [{ instruction: "Stir gently." }, { instruction: "Bake until golden." }] }, user.token);
+  const response = await request("POST", "/recipes/assistant", { recipeId: created.body.recipe.id, question: "Explain this step", stepNumber: 2 }, user.token);
+  assert.equal(response.status, 200);
+  assert.match(response.body.answer.answer, /Step 2|Bake until golden/i);
+});
+
 test("cooking assistant validates questions", async () => {
   const response = await request("POST", "/recipes/assistant", { recipeId: "missing", question: "?" }, user.token);
   assert.equal(response.status, 400);
