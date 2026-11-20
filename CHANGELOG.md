@@ -87,6 +87,16 @@
 - Updated README documentation for assistant evaluation, conversation fields, and allergen filtering.
 - Expanded automated regression coverage to 61 passing tests.
 
+## 2026-11-19 - Ollama evaluation and allergen matching hardening
+
+- Corrected suggestion evaluation limits and added API preflight, request timeouts, status/error reporting, and early-stop behavior.
+- Added explicit Ollama context/output limits, repetition penalty, shorter JSON instructions, and a temperature-varied retry only for malformed JSON.
+- Added maximum array sizes to structured provider schemas.
+- Strengthened allergen matching for compound ingredient names, exclusions, and ingredient notes, including cheese, pasta, noodles, plant milks, and compound substitutions.
+- Added suggestion behavior checks for declared allergens, raw chicken safety, and ambiguous recipe names.
+- Added degree-symbol encoding repair and regression coverage for the expanded allergen matcher.
+- Expanded automated regression coverage to 65 passing tests.
+
 ## 2026-11-19 - Final assistant evaluation polish
 
 - Added cleanup protection so evaluation results remain available when restoration or deletion encounters a server failure.

@@ -2,7 +2,7 @@ const DEFAULT_SAFETY_NOTE = "Follow the recipe and use a food thermometer for me
 
 function text(value) {
   if (Array.isArray(value)) return value.filter((item) => typeof item === "string").join(" ").trim();
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === "string" ? value.replaceAll("Â°", "°").trim() : "";
 }
 
 function isHighRiskIngredient(value) {

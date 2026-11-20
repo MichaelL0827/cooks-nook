@@ -17,8 +17,8 @@ const assistantSchema = {
   additionalProperties: false,
   properties: {
     answer: { type: "string" },
-    safetyNotes: { type: "array", items: { type: "string" } },
-    followUpQuestions: { type: "array", items: { type: "string" } },
+    safetyNotes: { type: "array", maxItems: 3, items: { type: "string" } },
+    followUpQuestions: { type: "array", maxItems: 2, items: { type: "string" } },
   },
   required: ["answer", "safetyNotes", "followUpQuestions"],
 };
@@ -100,7 +100,12 @@ async function requestLlmAnswer(recipe, question, allergens, history = [], stepN
       debugLlmResponse("ollama_assistant_raw_response", { promptVersion: AI_PROMPT_VERSION, response: data });
       if (!text) throw new Error("Ollama returned no answer.");
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        if (typeof parsed.answer === "string" && parsed.answer.trim().length < 40 && temperature === 0) {
+          lastError = new Error("Ollama returned an answer shorter than 40 characters.");
+          continue;
+        }
+        return parsed;
       } catch (error) {
         lastError = new Error(`Ollama returned invalid JSON (done_reason=${data.done_reason || "unknown"}, tokens=${data.eval_count || "unknown"}): ${error.message}`);
         if (temperature === 0) console.warn("Ollama assistant JSON was invalid; retrying once at temperature 0.3.");

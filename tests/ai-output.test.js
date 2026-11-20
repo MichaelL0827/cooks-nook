@@ -36,6 +36,13 @@ test("assistant output keeps a safety note for recipes with high-risk ingredient
   assert.equal(answer.safetyNotes.length, 1);
 });
 
+test("assistant output repairs common degree encoding corruption", () => {
+  const answer = normalizeAssistantAnswer({ answer: "Cook at 82-88Â°C until the sauce thickens." });
+
+  assert.match(answer.answer, /82-88°C/);
+  assert.doesNotMatch(answer.answer, /Â°/);
+});
+
 test("suggestion shape keeps the editable collections predictable", () => {
   const suggestion = normalizeSuggestionShape({
     recipeName: "  Pancakes ",

@@ -21,9 +21,10 @@ const suggestionSchema = {
   additionalProperties: false,
   properties: {
     recipeName: { type: "string" },
-    assumptions: { type: "array", items: { type: "string" } },
+    assumptions: { type: "array", maxItems: 8, items: { type: "string" } },
     ingredients: {
       type: "array",
+      maxItems: 12,
       items: {
         type: "object",
         additionalProperties: false,
@@ -38,6 +39,7 @@ const suggestionSchema = {
     },
     steps: {
       type: "array",
+      maxItems: 12,
       items: {
         type: "object",
         additionalProperties: false,
@@ -45,10 +47,11 @@ const suggestionSchema = {
         required: ["instruction"],
       },
     },
-    tags: { type: "array", items: { type: "string" } },
-    questions: { type: "array", items: { type: "string" } },
+    tags: { type: "array", maxItems: 8, items: { type: "string" } },
+    questions: { type: "array", maxItems: 5, items: { type: "string" } },
     substitutions: {
       type: "array",
+      maxItems: 12,
       items: {
         type: "object",
         additionalProperties: false,
@@ -95,7 +98,7 @@ async function getDatabaseSubstitutions(allergens, ingredients) {
   const allergenRows = await prisma.allergen.findMany({ where: { name: { in: allergens } } });
   const allergenIds = allergenRows.map((item) => item.id);
   const rows = await prisma.ingredientSubstitute.findMany({ where: { allergenId: { in: allergenIds } }, include: { ingredient: true, substitute: true, allergen: true } });
-  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(item.name, row.ingredient.name)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
+  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(`${item.name} ${item.notes || ""}`, row.ingredient.name)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
 }
 
 function sanitizeSuggestion(suggestion) {
@@ -224,7 +227,7 @@ async function requestOllamaSuggestionOnce(input, temperature) {
           content: `Create a general recipe draft for: ${input.recipeName}. Servings: ${input.servings ?? "unspecified"}. Declared allergens or dietary restrictions: ${(input.allergens ?? []).join(", ") || "none provided"}. Ingredients already available: ${(input.availableIngredients ?? []).join(", ") || "none provided"}.`,
         },
       ],
-      options: { temperature, num_predict: Number(process.env.OLLAMA_SUGGESTION_NUM_PREDICT || process.env.OLLAMA_NUM_PREDICT) || 1500, num_ctx: Number(process.env.OLLAMA_NUM_CTX) || 8192 },
+      options: { temperature, repeat_penalty: 1.15, num_predict: Number(process.env.OLLAMA_SUGGESTION_NUM_PREDICT || process.env.OLLAMA_NUM_PREDICT) || 1200, num_ctx: Number(process.env.OLLAMA_NUM_CTX) || 8192 },
       keep_alive: process.env.OLLAMA_KEEP_ALIVE || "15m",
     }),
   }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
@@ -249,19 +252,15 @@ async function requestOllamaSuggestionOnce(input, temperature) {
 
 async function requestOllamaSuggestion(input) {
   let lastError;
-  for (const temperature of [0, 0.3]) {
+  for (const temperature of [0.2, 0.3]) {
+    const { data, rawText } = await requestOllamaSuggestionOnce(input, temperature);
     try {
-      const { data, rawText } = await requestOllamaSuggestionOnce(input, temperature);
-      try {
-        return JSON.parse(rawText);
-      } catch (error) {
-        error.doneReason = data.done_reason;
-        error.evalCount = data.eval_count;
-        throw error;
-      }
+      return JSON.parse(rawText);
     } catch (error) {
+      error.doneReason = data.done_reason;
+      error.evalCount = data.eval_count;
       lastError = new Error(`Ollama returned invalid JSON (done_reason=${error.doneReason || "unknown"}, tokens=${error.evalCount || "unknown"}): ${error.message}`);
-      if (temperature === 0) console.warn("Ollama suggestion JSON was invalid; retrying once at temperature 0.3.");
+      if (temperature === 0.2) console.warn("Ollama suggestion JSON was invalid; retrying once at temperature 0.3.");
     }
   }
   throw lastError;
