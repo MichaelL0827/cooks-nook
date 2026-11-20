@@ -73,8 +73,9 @@ function extractResponseText(data) {
 }
 
 async function requestLlmAnswer(recipe, question, allergens, history = [], stepNumber) {
-  const context = { name: recipe.name, servings: recipe.servings, ingredients: recipe.ingredients.map((item) => ({ name: item.ingredient.name, quantity: item.quantity, unit: item.unit, notes: item.notes })), steps: recipe.steps.map((step) => step.instruction) };
-  const focus = stepNumber === undefined ? "" : `\n${COOKING_ASSISTANT_STEP_FOCUS(stepNumber)}`;
+  const context = { name: recipe.name, servings: recipe.servings, ingredients: recipe.ingredients.map((item) => ({ name: item.ingredient.name, quantity: item.quantity, unit: item.unit, notes: item.notes })), steps: recipe.steps.map((step, index) => ({ step: index + 1, instruction: step.instruction })) };
+  const focusedStep = stepNumber === undefined ? null : recipe.steps[stepNumber - 1];
+  const focus = stepNumber === undefined ? "" : `\n${COOKING_ASSISTANT_STEP_FOCUS(stepNumber)}\nFocused step text: ${focusedStep?.instruction || "unavailable"}`;
   const system = `${COOKING_ASSISTANT_PROMPT}\n\n${COOKING_ASSISTANT_CONTEXT_RULE}\n\nRecipe context:\n${JSON.stringify(context)}\nDeclared account allergens: ${allergens.join(", ") || "none"}${focus}`;
   const messages = [
     { role: "system", content: system },
@@ -153,10 +154,11 @@ router.post("/", asyncHandler(async (req, res) => {
     const configuredKey = process.env.LLM_API_KEY?.trim();
     const placeholderKeys = new Set(["your-api-key-here", "replace-with-your-api-key"]);
     const useFallback = process.env.LLM_OFFLINE_MODE === "true" || (!isOllama && (!configuredKey || placeholderKeys.has(configuredKey)));
-    let source = useFallback ? "offline-fallback" : (isOllama ? "ollama" : "llm");
-    let fallbackReason = useFallback ? "offline_mode" : null;
+    const invalidStep = stepNumber !== undefined && stepNumber > recipe.steps.length;
+    let source = useFallback || invalidStep ? "offline-fallback" : (isOllama ? "ollama" : "llm");
+    let fallbackReason = invalidStep ? "invalid_step" : (useFallback ? "offline_mode" : null);
     let rawAnswer;
-    if (useFallback) rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
+    if (useFallback || invalidStep) rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
     else {
       try { rawAnswer = await requestLlmAnswer(recipe, question, allergens, history, stepNumber); }
       catch (error) { console.warn("Cooking assistant provider failed; using offline fallback:", error.message); rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber); source = "offline-fallback"; fallbackReason = "provider_error"; }

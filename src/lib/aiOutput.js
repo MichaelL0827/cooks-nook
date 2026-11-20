@@ -29,8 +29,8 @@ function uniqueTextList(value, limit = 8) {
 }
 
 export function normalizeAssistantAnswer(raw, { hasHighRiskIngredient = false } = {}) {
-  const answer = text(raw?.answer);
-  const safetyNotes = uniqueTextList(raw?.safetyNotes, 3);
+  const answer = text(raw?.answer).replace(/\u00c2\u00b0/g, "\u00b0");
+  const safetyNotes = uniqueTextList(raw?.safetyNotes, 3).filter((note) => !/^(none|n\/a)$/i.test(note));
   return {
     answer: answer || "I could not produce a clear answer from this recipe. Please ask about a specific step or ingredient.",
     safetyNotes: safetyNotes.length
@@ -55,7 +55,7 @@ export function normalizeSuggestionShape(raw, recipeName, { preserveAttribution 
       ? raw.steps.flatMap((step) => normalizeStepText(typeof step === "string" ? step : step?.instruction ?? step?.text ?? step?.step ?? step?.description ?? ""))
       : [];
   const normalized = {
-    recipeName: text(raw?.recipeName) || text(recipeName) || "Recipe draft",
+    recipeName: (text(raw?.recipeName) || text(recipeName) || "Recipe draft").replace(/([a-z])([A-Z])/g, "$1 $2"),
     assumptions: uniqueTextList(raw?.assumptions, 8),
     ingredients,
     steps,

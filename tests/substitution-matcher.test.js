@@ -18,6 +18,9 @@ test("catalog matching handles compound gluten ingredients and exclusions", () =
   assert.equal(ingredientNameMatches("penne pasta", "pasta"), true);
   assert.equal(ingredientNameMatches("lasagna noodles", "pasta"), true);
   assert.equal(ingredientNameMatches("corn tortillas", "flour tortillas"), false);
+  assert.equal(ingredientMatchesAllergen("AllPurposeFlour", "gluten"), true);
+  assert.equal(ingredientMatchesAllergen("PankoBreadcrumbs", "gluten"), true);
+  assert.equal(ingredientMatchesAllergen("MaltVinegar", "gluten"), true);
   for (const name of ["gluten-free pasta", "gluten-free flour blend", "gluten-free bread", "rice flour", "rice noodles", "zucchini noodles"]) {
     assert.equal(ingredientMatchesAllergen(name, "gluten"), false, name);
   }

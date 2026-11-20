@@ -107,7 +107,7 @@ function sanitizeSuggestion(suggestion) {
   const sanitizeIngredient = (item) => {
     if (!item || typeof item.name !== "string") return null;
     const parenthetical = item.name.trim().match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-    let name = (parenthetical ? parenthetical[1] : item.name).trim();
+    let name = (parenthetical ? parenthetical[1] : item.name).trim().replace(/([a-z])([A-Z])/g, "$1 $2");
     const parentheticalNotes = parenthetical?.[2]?.trim();
     const commaParts = name.split(",");
     name = commaParts.shift().trim();
@@ -128,11 +128,14 @@ function sanitizeSuggestion(suggestion) {
   const assumptions = Array.isArray(suggestion.assumptions) ? suggestion.assumptions.filter((item) => typeof item === "string") : [];
   const rawIngredients = Array.isArray(suggestion.ingredients) ? suggestion.ingredients : [];
   const ingredients = rawIngredients.map(sanitizeIngredient).filter(Boolean);
-  const tags = Array.isArray(suggestion.tags) ? suggestion.tags.filter((item) => typeof item === "string" && /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u.test(item.trim())).map((item) => item.trim()) : [];
-  const substitutions = Array.isArray(suggestion.substitutions) ? suggestion.substitutions.filter((item) => item && typeof item.ingredient === "string" && typeof item.substitute === "string").map((item) => ({ ingredient: item.ingredient.trim(), substitute: item.substitute.trim(), reason: String(item.reason || "Common substitute."), caution: String(item.caution || "Check the product label."), source: "llm" })) : [];
+  const tags = Array.isArray(suggestion.tags) ? suggestion.tags.filter((item) => typeof item === "string" && !/\b(?:free|safe)\b/i.test(item) && /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u.test(item.trim())).map((item) => item.trim()) : [];
+  const substitutions = Array.isArray(suggestion.substitutions) ? suggestion.substitutions.filter((item) => item && typeof item.ingredient === "string" && typeof item.substitute === "string" && item.substitute.trim() && !/^(none|n\/a)$/i.test(item.substitute.trim())).map((item) => ({ ingredient: item.ingredient.trim(), substitute: item.substitute.trim(), reason: String(item.reason || "Common substitute."), caution: String(item.caution || "Check the product label."), source: "llm" })) : [];
   const dropped = rawIngredients.length - ingredients.length;
   if (dropped > 0) assumptions.push(`${dropped} provider ingredient suggestion${dropped === 1 ? " was" : "s were"} removed because its name contained unsupported characters.`);
-  return { ...suggestion, assumptions, ingredients, tags, substitutions };
+  const allDraftText = `${ingredients.map((item) => `${item.name} ${item.notes || ""}`).join(" ")} ${suggestion.steps?.map((step) => step.instruction).join(" ") || ""}`;
+  if (/\b(chicken|turkey|duck|poultry)\b/i.test(allDraftText) && !/\b(cook|cooked|heat|heated|165|thermometer|fully cooked)\b/i.test(allDraftText)) assumptions.push("Do not eat poultry raw; cook it fully and verify a safe internal temperature.");
+  const recipeName = typeof suggestion.recipeName === "string" ? suggestion.recipeName.replace(/([a-z])([A-Z])/g, "$1 $2") : suggestion.recipeName;
+  return { ...suggestion, recipeName, assumptions, ingredients, tags, substitutions };
 }
 
 function makeFallbackSuggestion({ recipeName, servings, allergens = [], availableIngredients = [], substitutions = [] }) {

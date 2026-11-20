@@ -65,6 +65,12 @@ test("suggestion shape keeps the editable collections predictable", () => {
   });
 });
 
+test("suggestion shape separates camel-case recipe names", () => {
+  const suggestion = normalizeSuggestionShape({ recipeName: "FishAndChips" }, "Recipe");
+
+  assert.equal(suggestion.recipeName, "Fish And Chips");
+});
+
 test("suggestion shape repairs numbered and alternate step formats", () => {
   const suggestion = normalizeSuggestionShape({
     recipeName: "Soup",

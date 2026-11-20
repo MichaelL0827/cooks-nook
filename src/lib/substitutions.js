@@ -13,7 +13,7 @@ export const catalog = [
   { allergen: "eggs", base: "eggs", aliases: ["egg", "eggs", "egg white", "egg whites"], exclude: /\begg replacer\b/i, substitute: "commercial egg replacer", notes: "Egg replacers do not work the same way in every recipe." },
   { allergen: "eggs", base: "mayonnaise", aliases: ["mayonnaise", "mayo"], substitute: "egg-free mayonnaise", notes: "Check the label for dairy, soy, or other allergens." },
   { allergen: "gluten", base: "flour", aliases: ["flour", "all-purpose flour", "whole-wheat flour", "wheat flour", "bread flour"], exclude: /\b(almond|oat|coconut|rice|corn|chickpea|buckwheat|tapioca)\s+flour\b/i, substitute: "certified gluten-free flour blend", notes: "Some blends require an added binder." },
-  { allergen: "gluten", base: "barley", aliases: ["barley"], substitute: "certified gluten-free grains", notes: "Check the replacement grain's cooking time and label." },
+  { allergen: "gluten", base: "barley", aliases: ["barley", "malt", "malt vinegar", "beer"], substitute: "certified gluten-free grains", notes: "Check the replacement grain's cooking time and label." },
   { allergen: "gluten", base: "rye", aliases: ["rye"], substitute: "certified gluten-free grains", notes: "Check the replacement grain's cooking time and label." },
   { allergen: "gluten", base: "couscous", aliases: ["couscous"], substitute: "certified gluten-free quinoa", notes: "Quinoa changes the texture and cooking time." },
   { allergen: "gluten", base: "breadcrumbs", aliases: ["breadcrumbs", "bread crumbs"], substitute: "certified gluten-free breadcrumbs", notes: "Check the label for wheat and cross-contact." },
@@ -85,9 +85,9 @@ function hasAlias(text, entry) {
 }
 
 export function matchesCatalogEntry(name, entry, notes = "") {
-  const normalizedName = String(name || "").toLowerCase();
+  const normalizedName = String(name || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   if (!entry.exclude?.test(normalizedName) && !FREE_FROM.test(normalizedName) && hasAlias(normalizedName, entry)) return true;
-  const noteText = String(notes || "").toLowerCase().split(/[;.]/).filter((clause) => !/substitut|alternative|instead|replace/.test(clause)).join(" ");
+  const noteText = String(notes || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[;.]/).filter((clause) => !/substitut|alternative|instead|replace/.test(clause)).join(" ");
   return !entry.exclude?.test(noteText) && hasAlias(noteText, entry);
 }
 
