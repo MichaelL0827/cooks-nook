@@ -80,23 +80,33 @@ async function requestLlmAnswer(recipe, question, allergens, history = [], stepN
   ];
   const provider = process.env.LLM_PROVIDER?.trim().toLowerCase() || "openai";
   if (provider === "ollama") {
-    const response = await fetchWithRetry(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL || "llama3.1:8b",
-        stream: false,
-        format: assistantSchema,
-        messages,
-        options: { temperature: 0 },
-      }),
-    }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
-    if (!response.ok) throw new Error(`Ollama request failed (${response.status})`);
-    const data = await response.json();
-    const text = data.message?.content ?? "";
-    debugLlmResponse("ollama_assistant_raw_response", { promptVersion: AI_PROMPT_VERSION, response: data });
-    if (!text) throw new Error("Ollama returned no answer.");
-    return JSON.parse(text);
+    let lastError;
+    for (const temperature of [0, 0.3]) {
+      const response = await fetchWithRetry(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: process.env.OLLAMA_MODEL || "llama3.1:8b",
+          stream: false,
+          format: assistantSchema,
+          messages,
+          options: { temperature, num_predict: Number(process.env.OLLAMA_ASSISTANT_NUM_PREDICT || process.env.OLLAMA_NUM_PREDICT) || 400, num_ctx: Number(process.env.OLLAMA_NUM_CTX) || 8192 },
+          keep_alive: process.env.OLLAMA_KEEP_ALIVE || "15m",
+        }),
+      }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
+      if (!response.ok) throw new Error(`Ollama request failed (${response.status})`);
+      const data = await response.json();
+      const text = data.message?.content ?? "";
+      debugLlmResponse("ollama_assistant_raw_response", { promptVersion: AI_PROMPT_VERSION, response: data });
+      if (!text) throw new Error("Ollama returned no answer.");
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        lastError = new Error(`Ollama returned invalid JSON (done_reason=${data.done_reason || "unknown"}, tokens=${data.eval_count || "unknown"}): ${error.message}`);
+        if (temperature === 0) console.warn("Ollama assistant JSON was invalid; retrying once at temperature 0.3.");
+      }
+    }
+    throw lastError;
   }
   const response = await fetchWithRetry(process.env.LLM_API_URL || "https://api.openai.com/v1/responses", {
     method: "POST",

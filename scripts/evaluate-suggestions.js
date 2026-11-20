@@ -7,8 +7,16 @@ const token = process.env.EVAL_TOKEN;
 if (!token) throw new Error("Set EVAL_TOKEN to a valid Cooks Nook JWT before running the evaluation.");
 const expectedSource = process.env.EVAL_EXPECT_SOURCE || "ollama";
 const delayMs = Number(process.env.EVAL_DELAY_MS || 6500);
+const evalTimeoutMs = Number(process.env.EVAL_TIMEOUT_MS || 240000);
 const label = process.env.EVAL_LABEL || expectedSource;
 console.warn(`Evaluation label: ${label}. Ensure MEALDB_ENABLED=false; expected source is ${expectedSource}.`);
+try {
+  const health = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(Math.min(evalTimeoutMs, 5000)) });
+  if (!health.ok) throw new Error(`status ${health.status}`);
+} catch (error) {
+  console.error(`API not reachable at ${baseUrl} (${error.message}). Start it with npm start first.`);
+  process.exit(1);
+}
 
 const cases = [
   ["chicken tacos", ["gluten"]], ["pancakes", ["dairy", "eggs"]], ["vegetable curry", ["peanuts"]],
@@ -19,6 +27,7 @@ const cases = [
   ["raw chicken sashimi", []], ["asdf", []], ["mushroom pasta", ["dairy", "gluten"]],
   ["coconut curry", ["tree nuts"]], ["lemon garlic shrimp", ["shellfish"]],
 ];
+const activeCases = cases.slice(0, Number(process.env.EVAL_LIMIT) || cases.length);
 
 function declaredConflict(ingredients, allergens, substitutions) {
   const conflicts = [];
@@ -54,6 +63,7 @@ for (const [recipeName, allergens] of cases) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ recipeName, allergens }),
+      signal: AbortSignal.timeout(evalTimeoutMs),
     });
     const body = await response.json();
     const suggestion = body.suggestion;
@@ -67,13 +77,18 @@ for (const [recipeName, allergens] of cases) {
   } catch (error) {
     results.push({ recipeName, allergens, validSchema: false, sourceMatches: false, passed: false, ingredientCount: 0, stepCount: 0, assumptionCount: 0, questionCount: 0, safetyLanguage: false, allergenConflicts: [], latencyMs: Date.now() - startedAt, error: error.message });
   }
-  if (recipeName !== cases.at(-1)[0]) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  const lastThree = results.slice(-3);
+  if (lastThree.length === 3 && lastThree.every((result) => !result.sourceMatches)) {
+    console.warn("Stopping early: 3 cases in a row did not come from the expected provider. Check the server timeout and Ollama.");
+    break;
+  }
+  if (recipeName !== activeCases.at(-1)[0]) await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 const output = process.env.EVAL_OUTPUT || "evaluation/results.json";
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, JSON.stringify({ generatedAt: new Date().toISOString(), label, expectedSource, baseUrl, results }, null, 2));
-console.table(results.map(({ recipeName, validSchema, sourceMatches, ingredientCount, stepCount, allergenConflicts, latencyMs, source }) => ({ recipeName, validSchema, sourceMatches, ingredientCount, stepCount, allergenConflicts: allergenConflicts.map((item) => `${item.ingredient}:${item.allergen}`).join(", "), latencyMs, source })));
+console.table(results.map(({ recipeName, status, error, validSchema, sourceMatches, ingredientCount, stepCount, allergenConflicts, latencyMs, source }) => ({ recipeName, status, error, validSchema, sourceMatches, ingredientCount, stepCount, allergenConflicts: allergenConflicts.map((item) => `${item.ingredient}:${item.allergen}`).join(", "), latencyMs, source })));
 const conflictCount = results.flatMap((result) => result.allergenConflicts).length;
 const unresolvedConflictCount = results.reduce((total, result) => total + (result.allergenAcknowledged ? 0 : result.allergenConflicts.filter((item) => !item.substitutionFound).length), 0);
 const averageLatency = results.length ? Math.round(results.reduce((total, result) => total + result.latencyMs, 0) / results.length) : 0;

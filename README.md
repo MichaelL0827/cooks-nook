@@ -144,6 +144,9 @@ The main provider settings are configured in `.env`:
 | `LLM_API_URL` / `LLM_MODEL` | OpenAI-compatible endpoint and model. |
 | `LLM_OFFLINE_MODE` | Forces deterministic offline drafts when set to `true`. |
 | `LLM_TIMEOUT_MS` | Provider request timeout in milliseconds; useful for slow local model startup. |
+| `OLLAMA_NUM_PREDICT` / `OLLAMA_SUGGESTION_NUM_PREDICT` / `OLLAMA_ASSISTANT_NUM_PREDICT` | Maximum generated tokens for Ollama requests; defaults are 1500 for drafts and 400 for assistant answers. |
+| `OLLAMA_NUM_CTX` | Ollama context size, defaulting to 8192. |
+| `OLLAMA_KEEP_ALIVE` | Ollama model keep-alive duration, defaulting to `15m`. |
 | `LLM_DEBUG_LOG` | Logs raw provider output, latency, usage, and prompt version when `true`. |
 | `OLLAMA_API_URL` / `OLLAMA_MODEL` | Local Ollama `/api/chat` endpoint and installed model name. |
 | `MEALDB_ENABLED` / `MEALDB_API_URL` | Enables TheMealDB lookup and selects its API base URL. |
@@ -216,6 +219,8 @@ Evaluation-specific variables are:
 | `EVAL_EXPECT_SOURCE` | `ollama` | Expected response source; another source counts as a failed case. |
 | `EVAL_DELAY_MS` | `6500` | Delay between cases to stay below the per-user suggestion rate limit. |
 | `EVAL_OUTPUT` | `evaluation/results.json` | Results file path. |
+| `EVAL_LIMIT` | all cases | Number of cases for a smoke test; three consecutive unexpected sources stop the run early. |
+| `EVAL_TIMEOUT_MS` | `240000` | Timeout for each evaluation request. |
 
 The script prints a table and a summary containing passed cases, unresolved
 allergen conflicts, provider fallbacks, and average latency. Generated results

@@ -205,7 +205,7 @@ function extractResponseText(data) {
   return content.find((item) => item.type === "output_text")?.text ?? "";
 }
 
-async function requestOllamaSuggestion(input) {
+async function requestOllamaSuggestionOnce(input, temperature) {
   const startedAt = Date.now();
   const response = await fetchWithRetry(process.env.OLLAMA_API_URL || "http://localhost:11434/api/chat", {
     method: "POST",
@@ -224,7 +224,8 @@ async function requestOllamaSuggestion(input) {
           content: `Create a general recipe draft for: ${input.recipeName}. Servings: ${input.servings ?? "unspecified"}. Declared allergens or dietary restrictions: ${(input.allergens ?? []).join(", ") || "none provided"}. Ingredients already available: ${(input.availableIngredients ?? []).join(", ") || "none provided"}.`,
         },
       ],
-      options: { temperature: 0 },
+      options: { temperature, num_predict: Number(process.env.OLLAMA_SUGGESTION_NUM_PREDICT || process.env.OLLAMA_NUM_PREDICT) || 1500, num_ctx: Number(process.env.OLLAMA_NUM_CTX) || 8192 },
+      keep_alive: process.env.OLLAMA_KEEP_ALIVE || "15m",
     }),
   }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
 
@@ -243,7 +244,27 @@ async function requestOllamaSuggestion(input) {
     response: data,
   });
   if (!rawText) throw new Error("Ollama returned no suggestion.");
-  return JSON.parse(rawText);
+  return { data, rawText };
+}
+
+async function requestOllamaSuggestion(input) {
+  let lastError;
+  for (const temperature of [0, 0.3]) {
+    try {
+      const { data, rawText } = await requestOllamaSuggestionOnce(input, temperature);
+      try {
+        return JSON.parse(rawText);
+      } catch (error) {
+        error.doneReason = data.done_reason;
+        error.evalCount = data.eval_count;
+        throw error;
+      }
+    } catch (error) {
+      lastError = new Error(`Ollama returned invalid JSON (done_reason=${error.doneReason || "unknown"}, tokens=${error.evalCount || "unknown"}): ${error.message}`);
+      if (temperature === 0) console.warn("Ollama suggestion JSON was invalid; retrying once at temperature 0.3.");
+    }
+  }
+  throw lastError;
 }
 
 async function requestLlmSuggestion(input) {
