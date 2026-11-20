@@ -1,5 +1,10 @@
 const DEFAULT_SAFETY_NOTE = "Follow the recipe and use a food thermometer for meat, poultry, seafood, and eggs when appropriate.";
 
+export function isIncompleteAssistantAnswer(value) {
+  const answer = String(value || "").trim();
+  return answer.length < 40 && answer.split(/\s+/).filter(Boolean).length < 6;
+}
+
 function text(value) {
   if (Array.isArray(value)) return value.filter((item) => typeof item === "string").join(" ").trim();
   return typeof value === "string" ? value.replaceAll("Â°", "°").trim() : "";

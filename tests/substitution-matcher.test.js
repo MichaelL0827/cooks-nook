@@ -33,3 +33,9 @@ test("catalog matching avoids misleading butter matches and scans notes", () => 
   assert.equal(ingredientMatchesAllergen("commercial egg replacer", "eggs"), false);
   assert.equal(ingredientMatchesAllergen("vanilla", "tree nuts", "almond extract"), false);
 });
+
+test("free-from replacement names remain compliant when notes mention the base ingredient", () => {
+  assert.equal(ingredientMatchesAllergen("certified gluten-free corn tortillas", "gluten"), false);
+  assert.equal(ingredientMatchesAllergen("certified gluten-free flour blend", "gluten"), false);
+  assert.equal(ingredientMatchesAllergen("certified gluten-free pasta", "gluten"), false);
+});

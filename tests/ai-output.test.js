@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizeAssistantAnswer, normalizeSuggestionShape } from "../src/lib/aiOutput.js";
+import { isIncompleteAssistantAnswer, normalizeAssistantAnswer, normalizeSuggestionShape } from "../src/lib/aiOutput.js";
+
+test("assistant completeness guard catches terse answers", () => {
+  assert.equal(isIncompleteAssistantAnswer("Until golden"), true);
+  assert.equal(isIncompleteAssistantAnswer("Cook the chicken until golden brown, then check the texture."), false);
+});
 
 test("assistant output is trimmed, deduplicated, and given safety guidance", () => {
   const answer = normalizeAssistantAnswer({

@@ -57,6 +57,49 @@ test("ingredient maker returns allergen-aware substitution recommendations", asy
   assert.ok(response.body.suggestion.substitutions.some((item) => /milk/i.test(item.ingredient)));
 });
 
+test("ingredient maker applies declared allergen substitutions to the draft", async () => {
+  const response = await request(
+    "POST",
+    "/recipes/suggest",
+    { recipeName: "Pancakes", allergens: ["dairy"] },
+    user.token,
+  );
+
+  assert.equal(response.status, 200);
+  const names = response.body.suggestion.ingredients.map((item) => item.name.toLowerCase());
+  assert.equal(names.includes("milk"), false);
+  assert.equal(names.includes("butter"), false);
+  assert.match(response.body.suggestion.assumptions.join(" "), /Replaced/i);
+  assert.ok(response.body.suggestion.substitutions.length > 0);
+});
+
+test("ingredient maker redirects unsafe raw poultry requests", async () => {
+  const response = await request(
+    "POST",
+    "/recipes/suggest",
+    { recipeName: "raw chicken sashimi" },
+    user.token,
+  );
+
+  assert.equal(response.status, 200);
+  const text = `${response.body.suggestion.assumptions.join(" ")} ${response.body.suggestion.steps.map((step) => step.instruction).join(" ")}`;
+  assert.match(text, /unsafe|165|thermometer/i);
+  assert.doesNotMatch(text, /serve raw|eat raw|sashimi-grade/i);
+});
+
+test("ingredient maker asks for clarification on an unclear recipe name", async () => {
+  const response = await request(
+    "POST",
+    "/recipes/suggest",
+    { recipeName: "asdf" },
+    user.token,
+  );
+
+  assert.equal(response.status, 200);
+  assert.match(response.body.suggestion.assumptions.join(" "), /unclear/i);
+  assert.ok(response.body.suggestion.questions.some((question) => /intend|dish/i.test(question)));
+});
+
 test("saved recipe substitutions use persisted allergens and exact ingredient names", async () => {
   const preferences = await request("PUT", "/me/allergens", { allergens: ["dairy", "tree nuts", "eggs"] }, user.token);
   assert.equal(preferences.status, 200);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
-import { catalog, ingredientNameMatches, normalizeAllergenNames } from "../lib/substitutions.js";
+import { catalog, ingredientMatchesAllergen, ingredientNameMatches, normalizeAllergenNames } from "../lib/substitutions.js";
 import { supportedAllergens } from "../lib/substitutions.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
@@ -136,6 +136,61 @@ function sanitizeSuggestion(suggestion) {
   if (/\b(chicken|turkey|duck|poultry)\b/i.test(allDraftText) && !/\b(cook|cooked|heat|heated|165|thermometer|fully cooked)\b/i.test(allDraftText)) assumptions.push("Do not eat poultry raw; cook it fully and verify a safe internal temperature.");
   const recipeName = typeof suggestion.recipeName === "string" ? suggestion.recipeName.replace(/([a-z])([A-Z])/g, "$1 $2") : suggestion.recipeName;
   return { ...suggestion, recipeName, assumptions, ingredients, tags, substitutions };
+}
+
+function isUnsafeRawPoultryRequest(recipeName) {
+  return /\b(raw chicken|chicken sashimi|sashimi chicken|raw poultry)\b/i.test(recipeName);
+}
+
+function isClearlyAmbiguousRecipeName(recipeName) {
+  return /^(?:asdf|qwer|zxcv|unknown|n\/a|test)$/i.test(recipeName.trim());
+}
+
+function redirectUnsafePoultryDraft(recipeName) {
+  return {
+    recipeName,
+    assumptions: [
+      "Raw poultry is unsafe to eat. This draft redirects the request to a fully cooked preparation.",
+      "Use a food thermometer and verify the thickest part reaches 165°F (74°C).",
+    ],
+    ingredients: [
+      { name: "chicken", quantity: 1, unit: "pound", notes: "cook fully before serving" },
+      { name: "salt", quantity: null, unit: null, notes: "to taste" },
+      { name: "black pepper", quantity: null, unit: null, notes: "to taste" },
+    ],
+    steps: [
+      { instruction: "Season the chicken and cook it in a skillet until fully cooked through." },
+      { instruction: "Check the thickest part with a food thermometer; serve only at 165°F (74°C)." },
+    ],
+    tags: ["food safety", "chicken"],
+    questions: ["Would you like a specific cooked chicken recipe instead?"],
+    substitutions: [],
+  };
+}
+
+function applyDeclaredAllergenSubstitutions(suggestion, allergens) {
+  const assumptions = [...suggestion.assumptions];
+  const ingredients = suggestion.ingredients.map((ingredient) => {
+    let updated = ingredient;
+    for (const allergen of allergens) {
+      const entry = catalog.find((candidate) => candidate.allergen === allergen && ingredientNameMatches(ingredient.name, candidate.base, ingredient.notes));
+      if (!entry) continue;
+      const originalName = ingredient.name;
+      updated = {
+        ...updated,
+        name: entry.substitute,
+        notes: [entry.notes, ingredient.notes].filter(Boolean).join(" ") || null,
+      };
+      assumptions.push(`Replaced ${originalName} with ${entry.substitute} for the declared ${allergen} restriction.`);
+      break;
+    }
+    return updated;
+  });
+  return { ...suggestion, ingredients, assumptions: [...new Set(assumptions)] };
+}
+
+function removeUnsafeSubstitutionTargets(substitutions, allergens) {
+  return substitutions.filter((item) => !allergens.some((allergen) => ingredientMatchesAllergen(item.substitute, allergen)));
 }
 
 function makeFallbackSuggestion({ recipeName, servings, allergens = [], availableIngredients = [], substitutions = [] }) {
@@ -354,8 +409,14 @@ router.post("/", asyncHandler(async (req, res) => {
       }
     }
     suggestion = sanitizeSuggestion(normalizeSuggestionShape(suggestion, input.recipeName, { preserveAttribution: source === "themealdb" }));
+    if (isUnsafeRawPoultryRequest(input.recipeName)) suggestion = redirectUnsafePoultryDraft(input.recipeName);
+    if (isClearlyAmbiguousRecipeName(input.recipeName)) {
+      suggestion.assumptions.push(`The recipe name "${input.recipeName}" is unclear; confirm the intended dish before cooking.`);
+      suggestion.questions.push("What dish did you intend to make?");
+    }
     const dbSubstitutions = await getDatabaseSubstitutions(input.allergens, suggestion.ingredients);
-    suggestion.substitutions = [...new Map([...dbSubstitutions, ...(suggestion.substitutions || [])].map((item) => [`${item.ingredient}:${item.substitute}`, item])).values()];
+    suggestion = applyDeclaredAllergenSubstitutions(suggestion, input.allergens);
+    suggestion.substitutions = removeUnsafeSubstitutionTargets([...new Map([...dbSubstitutions, ...(suggestion.substitutions || [])].map((item) => [`${item.ingredient}:${item.substitute}`, item])).values()], input.allergens);
     const noCatalogData = input.allergens.filter((allergen) => !catalog.some((item) => item.allergen === allergen));
     if (noCatalogData.length > 0) suggestion.assumptions.push(`No substitution data is available for ${noCatalogData.join(", ")}; check recipe ingredients manually.`);
     const responseBody = { suggestion, source };

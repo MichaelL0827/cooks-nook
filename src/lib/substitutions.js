@@ -86,6 +86,7 @@ function hasAlias(text, entry) {
 
 export function matchesCatalogEntry(name, entry, notes = "") {
   const normalizedName = String(name || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  if (FREE_FROM.test(normalizedName)) return false;
   if (!entry.exclude?.test(normalizedName) && !FREE_FROM.test(normalizedName) && hasAlias(normalizedName, entry)) return true;
   const noteText = String(notes || "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[;.]/).filter((clause) => !/substitut|alternative|instead|replace/.test(clause)).join(" ");
   return !entry.exclude?.test(noteText) && hasAlias(noteText, entry);

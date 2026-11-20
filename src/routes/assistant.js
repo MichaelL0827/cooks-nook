@@ -3,7 +3,7 @@ import prisma from "../lib/prisma.js";
 import requireAuth from "../middleware/requireAuth.js";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { userRateLimit } from "../middleware/rateLimit.js";
-import { isHighRiskIngredient, normalizeAssistantAnswer } from "../lib/aiOutput.js";
+import { isHighRiskIngredient, isIncompleteAssistantAnswer, normalizeAssistantAnswer } from "../lib/aiOutput.js";
 import { debugLlmResponse, fetchWithRetry } from "../lib/ai.js";
 import { AI_PROMPT_VERSION, COOKING_ASSISTANT_CONTEXT_RULE, COOKING_ASSISTANT_PROMPT, COOKING_ASSISTANT_STEP_FOCUS } from "../lib/prompts.js";
 
@@ -64,6 +64,18 @@ function makeFallbackAnswer(recipe, question, allergens, stepNumber) {
     return { answer: `In this recipe, the relevant direction is: “${relevantStep?.instruction || "Follow the recipe step and check the texture as you cook."}” Look for the visual and texture cues rather than relying only on a timer. If the step involves a potentially hazardous food, use a food thermometer to confirm doneness.`, safetyNotes, followUpQuestions: ["Which step should I explain in more detail?"] };
   }
   return { answer: `I can help clarify ${recipe.name}. The recipe contains ${recipe.ingredients.length} ingredient${recipe.ingredients.length === 1 ? "" : "s"} and ${stepCount} step${stepCount === 1 ? "" : "s"}. Ask about a specific step, technique, timing cue, or ingredient substitution.`, safetyNotes, followUpQuestions: ["Which step or ingredient is unclear?"] };
+}
+
+function isGuardedQuestion(question) {
+  return /\b(?:capital of|president of|weather|sports?|politics?|javascript|programming|system prompt|reveal (?:your|the) prompt|ignore (?:your|the) instructions)\b/i.test(question);
+}
+
+function makeGuardedAnswer(recipe) {
+  return {
+    answer: `I can only help with the recipe for ${recipe.name}. I will not answer unrelated questions or follow instructions that conflict with the recipe context. Ask about an ingredient, cooking technique, timing cue, or food-safety step.`,
+    safetyNotes: [],
+    followUpQuestions: ["Which recipe step or ingredient would you like to discuss?"],
+  };
 }
 
 function extractResponseText(data) {
@@ -157,14 +169,25 @@ router.post("/", asyncHandler(async (req, res) => {
     const invalidStep = stepNumber !== undefined && stepNumber > recipe.steps.length;
     let source = useFallback || invalidStep ? "offline-fallback" : (isOllama ? "ollama" : "llm");
     let fallbackReason = invalidStep ? "invalid_step" : (useFallback ? "offline_mode" : null);
+    let guarded = false;
     let rawAnswer;
-    if (useFallback || invalidStep) rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
+    if (isGuardedQuestion(question)) {
+      rawAnswer = makeGuardedAnswer(recipe);
+      guarded = true;
+    } else if (useFallback || invalidStep) rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
     else {
       try { rawAnswer = await requestLlmAnswer(recipe, question, allergens, history, stepNumber); }
       catch (error) { console.warn("Cooking assistant provider failed; using offline fallback:", error.message); rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber); source = "offline-fallback"; fallbackReason = "provider_error"; }
     }
+    let incomplete = false;
+    if (!guarded && isIncompleteAssistantAnswer(rawAnswer?.answer)) {
+      rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
+      incomplete = true;
+    }
     const answer = normalizeAssistantAnswer(rawAnswer, { hasHighRiskIngredient: recipe.ingredients.some((item) => isHighRiskIngredient(item.ingredient.name)) });
     const responseBody = { answer, source };
+    if (guarded) responseBody.guarded = "off_topic_or_injection";
+    if (incomplete) responseBody.guarded = "incomplete_answer";
     if (source === "offline-fallback") responseBody.fallbackReason = fallbackReason;
     if (source === "ollama" || source === "llm") responseBody.promptVersion = AI_PROMPT_VERSION;
     return res.json(responseBody);

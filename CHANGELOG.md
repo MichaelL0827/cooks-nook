@@ -111,3 +111,12 @@
 - Added cleanup warnings when evaluation allergen restoration or temporary recipe deletion fails.
 - Added `evaluation/assistant-review.csv` output with answer text and blank accuracy/helpfulness columns for manual 1–3 scoring.
 - Improved assistant keyboard focus after requests and changed transcript updates to append new messages for better screen-reader behavior.
+
+## 2026-11-20 - AI safety and evaluation corrections
+
+- Added server-side allergen substitutions for generated drafts and filtered substitution targets that conflict with declared restrictions.
+- Added safe redirection for raw-poultry requests and clarification prompts for clearly ambiguous recipe names.
+- Added assistant guards for off-topic, prompt-injection, and incomplete provider answers.
+- Fixed free-from matching so certified gluten-free, dairy-free, vegan, and plant-based replacements are not falsely flagged through their notes.
+- Added regression coverage for the safety guards, incomplete answers, allergen substitutions, and compliant replacement matching.
+- Verified the full test suite with 72 passing tests.
