@@ -22,6 +22,9 @@ const assistantSchema = {
   },
   required: ["answer", "safetyNotes", "followUpQuestions"],
 };
+const openAiAssistantSchema = JSON.parse(JSON.stringify(assistantSchema));
+delete openAiAssistantSchema.properties.safetyNotes.maxItems;
+delete openAiAssistantSchema.properties.followUpQuestions.maxItems;
 
 function validateRequest(body) {
   const errors = [];
@@ -101,7 +104,7 @@ async function requestLlmAnswer(recipe, question, allergens, history = [], stepN
       if (!text) throw new Error("Ollama returned no answer.");
       try {
         const parsed = JSON.parse(text);
-        if (typeof parsed.answer === "string" && parsed.answer.trim().length < 40 && temperature === 0) {
+        if (typeof parsed.answer === "string" && parsed.answer.trim().length < 40 && parsed.answer.trim().split(/\s+/).length < 6 && temperature === 0) {
           lastError = new Error("Ollama returned an answer shorter than 40 characters.");
           continue;
         }
@@ -120,7 +123,7 @@ async function requestLlmAnswer(recipe, question, allergens, history = [], stepN
       model: process.env.LLM_MODEL || "gpt-4.1-mini",
       store: false,
       input: messages,
-      text: { format: { type: "json_schema", name: "cooking_assistant_answer", strict: true, schema: assistantSchema } },
+      text: { format: { type: "json_schema", name: "cooking_assistant_answer", strict: true, schema: openAiAssistantSchema } },
     }),
   }, { timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000 });
   if (!response.ok) throw new Error(`LLM provider request failed (${response.status})`);

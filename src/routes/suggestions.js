@@ -67,6 +67,8 @@ const suggestionSchema = {
   },
   required: ["recipeName", "assumptions", "ingredients", "steps", "tags", "questions", "substitutions"],
 };
+const openAiSuggestionSchema = JSON.parse(JSON.stringify(suggestionSchema));
+for (const field of ["assumptions", "ingredients", "steps", "tags", "questions", "substitutions"]) delete openAiSuggestionSchema.properties[field].maxItems;
 
 function validateRequest(body) {
   const errors = [];
@@ -98,7 +100,7 @@ async function getDatabaseSubstitutions(allergens, ingredients) {
   const allergenRows = await prisma.allergen.findMany({ where: { name: { in: allergens } } });
   const allergenIds = allergenRows.map((item) => item.id);
   const rows = await prisma.ingredientSubstitute.findMany({ where: { allergenId: { in: allergenIds } }, include: { ingredient: true, substitute: true, allergen: true } });
-  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(`${item.name} ${item.notes || ""}`, row.ingredient.name)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
+  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(item.name, row.ingredient.name, item.notes)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
 }
 
 function sanitizeSuggestion(suggestion) {
@@ -287,7 +289,7 @@ async function requestLlmSuggestion(input) {
           type: "json_schema",
           name: "recipe_suggestion",
           strict: true,
-          schema: suggestionSchema,
+          schema: openAiSuggestionSchema,
         },
       },
     }),

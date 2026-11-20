@@ -146,7 +146,7 @@ router.get("/", asyncHandler(async (req, res) => {
     ...listSelection,
   });
   const filteredRecipes = hideAllergens
-    ? recipes.filter((recipe) => !recipe.ingredients.some((item) => userAllergens.some((allergen) => ingredientMatchesAllergen(`${item.ingredient.name} ${item.notes || ""}`, allergen))))
+    ? recipes.filter((recipe) => !recipe.ingredients.some((item) => userAllergens.some((allergen) => ingredientMatchesAllergen(item.ingredient.name, allergen, item.notes))))
       .map(({ ingredients, ...recipe }) => recipe)
     : recipes;
   res.json({ recipes: filteredRecipes });
