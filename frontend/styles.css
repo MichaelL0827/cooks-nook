@@ -28,6 +28,7 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .form-message { min-height:20px; margin:12px 0 0; color:#b34c3d; font-size:13px; }
 .topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px clamp(18px,4vw,52px); border-bottom:1px solid var(--line); background:rgba(255,253,248,.86); }
 .brand,.topbar-actions,.editor-actions,.sidebar-heading,.section-heading { display:flex; align-items:center; gap:10px; }
+.editor-actions { flex-wrap:wrap; }
 .brand { font-weight:900; }
 .topbar-actions { font-size:13px; }
 .workspace { display:grid; grid-template-columns:300px minmax(0,1fr); min-height:calc(100vh - 71px); }
@@ -53,7 +54,11 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .section-heading { justify-content:space-between; margin-bottom:15px; }
 .text-button { border:0; background:transparent; color:var(--green); font-weight:800; }
 .field-row { display:grid; grid-template-columns:minmax(0,1fr) 92px 100px 34px; gap:7px; margin-bottom:9px; }
-.field-row.ingredient-row { grid-template-columns:minmax(0,1.45fr) 64px 82px minmax(70px,.9fr) 34px; }
+.field-row.ingredient-row { display:block; }
+.ingredient-name-field { display:grid; grid-template-columns:minmax(0,1fr) 34px; gap:7px; }
+.ingredient-details { display:grid; grid-template-columns:64px 82px minmax(70px,.9fr); gap:7px; margin-top:7px; }
+.ingredient-details textarea { grid-column:1 / -1; width:100%; min-height:37px; padding:9px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); font-size:13px; line-height:1.4; outline:none; resize:none; overflow:hidden; }
+.ingredient-details textarea:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12); }
 .field-row.step { grid-template-columns:30px minmax(0,1fr) 34px; align-items:start; }
 .field-row input { min-width:0; padding:9px 10px; font-size:13px; }
 .field-row.step textarea { width:100%; min-height:74px; padding:10px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); line-height:1.45; outline:none; resize:none; overflow:hidden; }
@@ -91,5 +96,6 @@ input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,107,81,.12
 .allergen-filter { margin-top:10px; justify-content:flex-start; }
 .allergen-filter input { width:auto; }
 .filter-caveat { margin:6px 0 0; font-size:11px; line-height:1.35; }
-@media (max-width:800px) { .workspace { grid-template-columns:1fr; } .sidebar { border-right:0; border-bottom:1px solid var(--line); } .recipe-list { grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); } .editor-grid,.detail-columns { grid-template-columns:1fr; } .editor-heading { align-items:start; flex-direction:column; } .title-input { min-width:0; width:100%; } }
-@media (max-width:520px) { .topbar { align-items:start; flex-direction:column; } .topbar-actions { width:100%; justify-content:space-between; } .metadata-grid { grid-template-columns:1fr; } .field-row { grid-template-columns:minmax(0,1fr) 70px 80px 30px; } .field-row.ingredient-row { grid-template-columns:minmax(0,1fr) 62px 78px 30px; } .field-row.ingredient-row [data-field="notes"] { grid-column:1 / -1; } .content { padding:24px 18px; } }
+@media (max-width:800px) { .workspace { grid-template-columns:1fr; } .sidebar { border-right:0; border-bottom:1px solid var(--line); } .recipe-list { grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); } .editor-grid,.detail-columns { grid-template-columns:1fr; } .editor-heading { align-items:start; flex-direction:column; } .editor-actions { width:100%; } .editor-actions .button { flex:1 1 0; min-width:0; text-align:center; white-space:nowrap; } .title-input { min-width:0; width:100%; } }
+@media (max-width:520px) { .topbar { align-items:start; flex-direction:column; } .topbar-actions { width:100%; justify-content:space-between; } .metadata-grid { grid-template-columns:1fr; } .field-row { grid-template-columns:minmax(0,1fr) 70px 80px 30px; } .ingredient-details { grid-template-columns:62px 78px minmax(0,1fr); } .content { padding:24px 18px; } }
+@media (max-width:380px) { .editor-actions .button { flex-basis:100%; } .ingredient-details { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } .ingredient-details [data-field="notes"] { grid-column:1 / -1; } }
