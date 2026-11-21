@@ -67,6 +67,7 @@ test("suggestion shape keeps the editable collections predictable", () => {
     tags: ["breakfast"],
     questions: [],
     substitutions: [],
+    replacements: [],
   });
 });
 

@@ -69,7 +69,7 @@ test("ingredient maker applies declared allergen substitutions to the draft", as
   const names = response.body.suggestion.ingredients.map((item) => item.name.toLowerCase());
   assert.equal(names.includes("milk"), false);
   assert.equal(names.includes("butter"), false);
-  assert.match(response.body.suggestion.assumptions.join(" "), /Replaced/i);
+  assert.ok(response.body.suggestion.replacements.length > 0);
   assert.ok(response.body.suggestion.substitutions.length > 0);
 });
 
@@ -136,7 +136,7 @@ test("generic nut and synonym allergen values normalize consistently", async () 
   assert.equal(suggestion.status, 200);
   const shellfish = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["shrimp"] }, isolatedUser.token);
   assert.equal(shellfish.status, 200);
-  assert.match(shellfish.body.suggestion.assumptions.join(" "), /No substitution data/);
+  assert.equal(shellfish.body.suggestion.assumptions.some((item) => /No substitution data/.test(item)), false);
   const unsupported = await request("POST", "/recipes/suggest", { recipeName: "Pasta", allergens: ["mystery allergen"] }, isolatedUser.token);
   assert.equal(unsupported.status, 400);
 });

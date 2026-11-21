@@ -120,3 +120,12 @@
 - Fixed free-from matching so certified gluten-free, dairy-free, vegan, and plant-based replacements are not falsely flagged through their notes.
 - Added regression coverage for the safety guards, incomplete answers, allergen substitutions, and compliant replacement matching.
 - Verified the full test suite with 72 passing tests.
+
+## 2026-11-21 - AI evaluation training
+
+- Added ingredient-specific allergen substitutions for cheese forms, peanut oil, malt vinegar, and shellfish.
+- Replaced allergen references in recipe steps as well as ingredient lists, and recorded structured replacement metadata.
+- Added evaluation columns for `allergenInSteps`, replacement counts, and assistant guard status.
+- Added retries for provider drafts with fewer than three ingredients or steps.
+- Moved assumption and clarification text out of recipe steps and removed contradictory vegetarian or vegan tags when meat or broth is present.
+- Completed three evaluation runs averaging 18/20 suggestion cases and 15/15 assistant cases, with no provider fallbacks.
