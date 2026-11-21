@@ -67,6 +67,7 @@ export function normalizeSuggestionShape(raw, recipeName, { preserveAttribution 
     tags: uniqueTextList(raw?.tags, 8),
     questions: uniqueTextList(raw?.questions, 5),
     substitutions: Array.isArray(raw?.substitutions) ? raw.substitutions : [],
+    replacements: Array.isArray(raw?.replacements) ? raw.replacements : [],
   };
   if (preserveAttribution) {
     const sourceUrl = safeUrl(raw?.sourceUrl);

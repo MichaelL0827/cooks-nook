@@ -100,7 +100,7 @@ async function getDatabaseSubstitutions(allergens, ingredients) {
   const allergenRows = await prisma.allergen.findMany({ where: { name: { in: allergens } } });
   const allergenIds = allergenRows.map((item) => item.id);
   const rows = await prisma.ingredientSubstitute.findMany({ where: { allergenId: { in: allergenIds } }, include: { ingredient: true, substitute: true, allergen: true } });
-  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(item.name, row.ingredient.name, item.notes)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
+  return rows.flatMap((row) => ingredients.filter((item) => ingredientNameMatches(item.name, row.ingredient.name)).map((item) => ({ matchedIngredient: item.name, catalogIngredient: row.ingredient.name, ingredient: item.name, substitute: row.substitute.name, reason: `Common ${row.allergen.name} substitute.`, caution: row.notes || "Check the product label and cross-contact warnings.", source: "database-catalog" })));
 }
 
 function sanitizeSuggestion(suggestion) {
@@ -128,14 +128,23 @@ function sanitizeSuggestion(suggestion) {
   const assumptions = Array.isArray(suggestion.assumptions) ? suggestion.assumptions.filter((item) => typeof item === "string") : [];
   const rawIngredients = Array.isArray(suggestion.ingredients) ? suggestion.ingredients : [];
   const ingredients = rawIngredients.map(sanitizeIngredient).filter(Boolean);
-  const tags = Array.isArray(suggestion.tags) ? suggestion.tags.filter((item) => typeof item === "string" && !/\b(?:free|safe)\b/i.test(item) && /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u.test(item.trim())).map((item) => item.trim()) : [];
+  let tags = Array.isArray(suggestion.tags) ? suggestion.tags.filter((item) => typeof item === "string" && !/\b(?:free|safe)\b/i.test(item) && /^[\p{L}\p{N}]+(?:[ '-][\p{L}\p{N}]+)*$/u.test(item.trim())).map((item) => item.trim()) : [];
   const substitutions = Array.isArray(suggestion.substitutions) ? suggestion.substitutions.filter((item) => item && typeof item.ingredient === "string" && typeof item.substitute === "string" && item.substitute.trim() && !/^(none|n\/a)$/i.test(item.substitute.trim())).map((item) => ({ ingredient: item.ingredient.trim(), substitute: item.substitute.trim(), reason: String(item.reason || "Common substitute."), caution: String(item.caution || "Check the product label."), source: "llm" })) : [];
+  const steps = Array.isArray(suggestion.steps) ? suggestion.steps.map((step) => ({ ...step, instruction: String(step.instruction || "").trim() })).filter((step) => step.instruction) : [];
+  for (const step of steps) {
+    const leaked = step.instruction.match(/\b(assumption|clarification needed)\s*:\s*([^.!?]+[.!?]?)/i);
+    if (leaked) {
+      assumptions.push(leaked[0].trim());
+      step.instruction = step.instruction.replace(leaked[0], "").replace(/\s{2,}/g, " ").trim();
+    }
+  }
   const dropped = rawIngredients.length - ingredients.length;
   if (dropped > 0) assumptions.push(`${dropped} provider ingredient suggestion${dropped === 1 ? " was" : "s were"} removed because its name contained unsupported characters.`);
-  const allDraftText = `${ingredients.map((item) => `${item.name} ${item.notes || ""}`).join(" ")} ${suggestion.steps?.map((step) => step.instruction).join(" ") || ""}`;
+  const allDraftText = `${ingredients.map((item) => `${item.name} ${item.notes || ""}`).join(" ")} ${steps.map((step) => step.instruction).join(" ")}`;
   if (/\b(chicken|turkey|duck|poultry)\b/i.test(allDraftText) && !/\b(cook|cooked|heat|heated|165|thermometer|fully cooked)\b/i.test(allDraftText)) assumptions.push("Do not eat poultry raw; cook it fully and verify a safe internal temperature.");
+  if (/\b(meat|chicken|turkey|duck|poultry|fish|salmon|tuna|shrimp|seafood|broth)\b/i.test(allDraftText)) tags = tags.filter((tag) => !/^(vegetarian|vegan)$/i.test(tag));
   const recipeName = typeof suggestion.recipeName === "string" ? suggestion.recipeName.replace(/([a-z])([A-Z])/g, "$1 $2") : suggestion.recipeName;
-  return { ...suggestion, recipeName, assumptions, ingredients, tags, substitutions };
+  return { ...suggestion, recipeName, assumptions, ingredients, steps, tags, substitutions };
 }
 
 function isUnsafeRawPoultryRequest(recipeName) {
@@ -170,10 +179,13 @@ function redirectUnsafePoultryDraft(recipeName) {
 
 function applyDeclaredAllergenSubstitutions(suggestion, allergens) {
   const assumptions = [...suggestion.assumptions];
+  const replacements = [];
+  const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const ingredients = suggestion.ingredients.map((ingredient) => {
     let updated = ingredient;
     for (const allergen of allergens) {
-      const entry = catalog.find((candidate) => candidate.allergen === allergen && ingredientNameMatches(ingredient.name, candidate.base, ingredient.notes));
+      if (/\b(?:substitut|alternative|replacer|free|plant[- ]based|vegan)\b/i.test(ingredient.name)) continue;
+      const entry = catalog.find((candidate) => candidate.allergen === allergen && ingredientNameMatches(ingredient.name, candidate.base));
       if (!entry) continue;
       const originalName = ingredient.name;
       updated = {
@@ -181,12 +193,24 @@ function applyDeclaredAllergenSubstitutions(suggestion, allergens) {
         name: entry.substitute,
         notes: [entry.notes, ingredient.notes].filter(Boolean).join(" ") || null,
       };
-      assumptions.push(`Replaced ${originalName} with ${entry.substitute} for the declared ${allergen} restriction.`);
+      replacements.push({ original: originalName, terms: [...new Set([originalName, ...entry.aliases])], replacement: entry.substitute, allergen, source: "catalog" });
       break;
     }
     return updated;
   });
-  return { ...suggestion, ingredients, assumptions: [...new Set(assumptions)] };
+  const steps = suggestion.steps.map((step) => {
+    let instruction = step.instruction;
+    for (const replacement of replacements) {
+      for (const term of replacement.terms.sort((a, b) => b.length - a.length)) {
+        instruction = instruction.replace(new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi"), replacement.replacement);
+      }
+    }
+    return { ...step, instruction };
+  });
+  for (const item of ingredients) for (const allergen of allergens) {
+    if (ingredientMatchesAllergen(item.name, allergen, item.notes)) assumptions.push(`Contains ${item.name}, which matches your declared ${allergen} restriction. Do not use this draft as written.`);
+  }
+  return { ...suggestion, ingredients, steps, replacements, assumptions: [...new Set(assumptions)] };
 }
 
 function removeUnsafeSubstitutionTargets(substitutions, allergens) {
@@ -315,7 +339,13 @@ async function requestOllamaSuggestion(input) {
   for (const temperature of [0.2, 0.3]) {
     const { data, rawText } = await requestOllamaSuggestionOnce(input, temperature);
     try {
-      return JSON.parse(rawText);
+      const parsed = JSON.parse(rawText);
+      if (temperature === 0.2 && (parsed.ingredients?.length < 3 || parsed.steps?.length < 3)) {
+        lastError = new Error("Ollama returned an incomplete recipe draft; retrying with a higher temperature.");
+        console.warn("Ollama suggestion draft was too short; retrying once at temperature 0.3.");
+        continue;
+      }
+      return parsed;
     } catch (error) {
       error.doneReason = data.done_reason;
       error.evalCount = data.eval_count;

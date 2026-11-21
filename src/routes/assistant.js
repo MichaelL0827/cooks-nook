@@ -67,7 +67,11 @@ function makeFallbackAnswer(recipe, question, allergens, stepNumber) {
 }
 
 function isGuardedQuestion(question) {
-  return /\b(?:capital of|president of|weather|sports?|politics?|javascript|programming|system prompt|reveal (?:your|the) prompt|ignore (?:your|the) instructions)\b/i.test(question);
+  return /\b(?:capital of|president of|javascript|programming|system prompt|reveal (?:your|the) prompt|ignore (?:your|the) instructions)\b/i.test(question);
+}
+
+function containsPromptLeak(answer) {
+  return /cautious cooking assistant|recipe context:|return concise, beginner-friendly json|earlier messages are conversation context/i.test(String(answer || ""));
 }
 
 function makeGuardedAnswer(recipe) {
@@ -169,24 +173,28 @@ router.post("/", asyncHandler(async (req, res) => {
     const invalidStep = stepNumber !== undefined && stepNumber > recipe.steps.length;
     let source = useFallback || invalidStep ? "offline-fallback" : (isOllama ? "ollama" : "llm");
     let fallbackReason = invalidStep ? "invalid_step" : (useFallback ? "offline_mode" : null);
-    let guarded = false;
+    let guardReason = null;
     let rawAnswer;
     if (isGuardedQuestion(question)) {
       rawAnswer = makeGuardedAnswer(recipe);
-      guarded = true;
+      guardReason = "off_topic_or_injection";
     } else if (useFallback || invalidStep) rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
     else {
       try { rawAnswer = await requestLlmAnswer(recipe, question, allergens, history, stepNumber); }
       catch (error) { console.warn("Cooking assistant provider failed; using offline fallback:", error.message); rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber); source = "offline-fallback"; fallbackReason = "provider_error"; }
     }
     let incomplete = false;
-    if (!guarded && isIncompleteAssistantAnswer(rawAnswer?.answer)) {
+    if (!guardReason && containsPromptLeak(rawAnswer?.answer)) {
+      rawAnswer = makeGuardedAnswer(recipe);
+      guardReason = "prompt_leak";
+    }
+    if (!guardReason && isIncompleteAssistantAnswer(rawAnswer?.answer)) {
       rawAnswer = makeFallbackAnswer(recipe, question, allergens, stepNumber);
       incomplete = true;
     }
     const answer = normalizeAssistantAnswer(rawAnswer, { hasHighRiskIngredient: recipe.ingredients.some((item) => isHighRiskIngredient(item.ingredient.name)) });
     const responseBody = { answer, source };
-    if (guarded) responseBody.guarded = "off_topic_or_injection";
+    if (guardReason) responseBody.guarded = guardReason;
     if (incomplete) responseBody.guarded = "incomplete_answer";
     if (source === "offline-fallback") responseBody.fallbackReason = fallbackReason;
     if (source === "ollama" || source === "llm") responseBody.promptVersion = AI_PROMPT_VERSION;
